@@ -1,106 +1,16 @@
-import { LitElement, css, html } from 'lit'
-import './primitive-color-dialog.js'
-import './primitive-scale-dialog.js'
-import './color-input.js'
-import type { TknColorInput } from './color-input.js'
-import { asRecord, hasPrimitives } from './types.js'
-import type {
-  Brand,
-  ColorTokens,
-  DtcgColorValue,
-  DtcgToken,
-  DtcgTokenFile,
-  PrimitiveColorSaveDetail,
-  ReferenceOption,
-  ScaleSaveDetail,
-  ThemeTokens,
-  TokenValue,
-} from './types.js'
+import { LitElement, css, html, nothing } from 'lit'
+import type { PropertyValues } from 'lit'
+import { repeat } from 'lit/directives/repeat.js'
+import { fromDesignTokensFormat, normalizeBrand, toDesignTokensFormat } from './lib/dtcg.js'
+import { NEW_BRAND_PALETTE, createDefaultBrands, seedBrand, uniqueBrandId } from './lib/seed.js'
+import { buildCssVariables, buildThemeStyle, collectTokenIssues } from './lib/tokens.js'
+import { hasPrimitives } from './lib/guards.js'
+import type { Brand, PrimitiveColorSaveDetail, ScaleSaveDetail, ThemeTokens, TokenChangeDetail, TokenIssue } from './lib/types.js'
+import './components/primitive-color-dialog.js'
+import './components/primitive-scale-dialog.js'
+import './components/token-row.js'
 
-const seedBrand = (brandName: string, primary: string, secondary: string, _bgCanvasLight: string, _bgCanvasDark: string, _textStrongLight: string, _textStrongDark: string): Brand => ({
-  id: brandName.toLowerCase().replace(/\s+/g, '-'),
-  name: brandName,
-  themes: {
-    light: {
-      primitives: {
-        white: '#FFFFFF',
-        brandPrimary500: primary,
-        brandSecondary500: secondary,
-        gray950: '#101828',
-        gray700: '#475467',
-        gray500: '#667085',
-        gray200: '#E4E7EC',
-        gray50: '#F8FAFC',
-        green500: '#22C55E',
-        amber500: '#F59E0B',
-        red500: '#EF4444',
-      },
-      semantic: {
-        colorBgCanvas: '{primitives.gray50}',
-        colorBgElevated: '{primitives.white}',
-        colorTextStrong: '{primitives.gray950}',
-        colorTextMuted: '{primitives.gray700}',
-        colorBorderSubtle: '{primitives.gray200}',
-        colorBrandPrimary: '{primitives.brandPrimary500}',
-        colorBrandSecondary: '{primitives.brandSecondary500}',
-        colorActionText: '{primitives.white}',
-        colorSuccess: '{primitives.green500}',
-      },
-      component: {
-        buttonPrimaryBg: '{semantic.colorBrandPrimary}',
-        buttonPrimaryText: '{semantic.colorActionText}',
-        buttonSecondaryBg: '{primitives.gray50}',
-        buttonSecondaryText: '{semantic.colorTextStrong}',
-        cardBg: '{semantic.colorBgElevated}',
-        cardBorder: '{semantic.colorBorderSubtle}',
-        focusRing: '{semantic.colorBrandPrimary}',
-      },
-    },
-    dark: {
-      primitives: {
-        white: '#FFFFFF',
-        brandPrimary500: primary,
-        brandSecondary500: secondary,
-        gray950: '#F8FAFC',
-        gray700: '#D0D5DD',
-        gray500: '#98A2B3',
-        gray200: '#344054',
-        gray50: '#1F2937',
-        green500: '#34D399',
-        amber500: '#FBBF24',
-        red500: '#F87171',
-      },
-      semantic: {
-        colorBgCanvas: '{primitives.gray50}',
-        colorBgElevated: '{primitives.gray50}',
-        colorTextStrong: '{primitives.gray950}',
-        colorTextMuted: '{primitives.gray700}',
-        colorBorderSubtle: '{primitives.gray200}',
-        colorBrandPrimary: '{primitives.brandPrimary500}',
-        colorBrandSecondary: '{primitives.brandSecondary500}',
-        colorActionText: '{primitives.white}',
-        colorSuccess: '{primitives.green500}',
-      },
-      component: {
-        buttonPrimaryBg: '{semantic.colorBrandPrimary}',
-        buttonPrimaryText: '{semantic.colorActionText}',
-        buttonSecondaryBg: '{primitives.gray50}',
-        buttonSecondaryText: '{semantic.colorTextStrong}',
-        cardBg: '{semantic.colorBgElevated}',
-        cardBorder: '{semantic.colorBorderSubtle}',
-        focusRing: '{semantic.colorBrandPrimary}',
-      },
-    },
-  },
-})
-
-const initialBrands: Brand[] = [
-  seedBrand('Northstar', '#2563EB', '#7C3AED', '#F3F7FF', '#0B1220', '#0F172A', '#F8FAFC'),
-  seedBrand('Sunset', '#F97316', '#EC4899', '#FFF7ED', '#1A1120', '#1F2937', '#FFF7ED'),
-  seedBrand('Evergreen', '#0F766E', '#10B981', '#F0FDF4', '#091B1A', '#0F172A', '#ECFDF5'),
-]
-
-const defaultJson: { brands: Brand[] } = { brands: initialBrands }
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 export class TokenSyncApp extends LitElement {
   static properties = {
@@ -108,34 +18,49 @@ export class TokenSyncApp extends LitElement {
     selectedBrand: { type: String },
     selectedTheme: { type: String },
     cssOutput: { type: String },
+    importWarnings: { type: Array },
+    importIssues: { type: Array },
     primitiveDialogOpen: { type: Boolean },
     primitiveDialogError: { type: String },
     scaleDialogOpen: { type: Boolean },
     scaleDialogError: { type: String },
     fileLoadError: { type: String },
+    addingBrand: { type: Boolean },
+    newBrandName: { type: String },
+    copyStatus: { type: String },
   }
 
   declare brands: Brand[]
   declare selectedBrand: string
   declare selectedTheme: string
   declare cssOutput: string
+  declare importWarnings: string[]
+  declare importIssues: TokenIssue[]
   declare primitiveDialogOpen: boolean
   declare primitiveDialogError: string
   declare scaleDialogOpen: boolean
   declare scaleDialogError: string
   declare fileLoadError: string
+  declare addingBrand: boolean
+  declare newBrandName: string
+  declare copyStatus: string
 
   constructor() {
     super()
-    this.brands = structuredClone(initialBrands)
-    this.selectedBrand = this.brands[0].id
+    this.brands = createDefaultBrands()
+    this.selectedBrand = this.brands[0]?.id ?? ''
     this.selectedTheme = 'light'
     this.cssOutput = ''
+    this.importWarnings = []
+    this.importIssues = []
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
     this.scaleDialogOpen = false
     this.scaleDialogError = ''
     this.fileLoadError = ''
+    this.addingBrand = false
+    this.newBrandName = ''
+    this.copyStatus = ''
   }
 
   connectedCallback() {
@@ -143,20 +68,38 @@ export class TokenSyncApp extends LitElement {
     this.loadBrandData()
   }
 
+  /**
+   * Derived state lives here instead of in every mutator: the CSS export is
+   * recomputed, references are validated and `color-scheme` follows the theme.
+   */
+  willUpdate() {
+    const cssOutput = buildCssVariables(this.currentThemeTokens)
+    if (cssOutput !== this.cssOutput) this.cssOutput = cssOutput
+
+    const colorScheme = this.selectedTheme === 'dark' ? 'dark' : 'light'
+    if (document.documentElement.style.colorScheme !== colorScheme) {
+      document.documentElement.style.colorScheme = colorScheme
+    }
+  }
+
+  private _applyBrands(brands: Brand[], warnings: string[] = []) {
+    this.brands = brands.map((brand) => normalizeBrand(brand))
+    this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
+    this.importWarnings = warnings
+    this.importIssues = collectTokenIssues(this.brands)
+  }
+
   async loadBrandData() {
     try {
-      const response = await fetch('/tokens.json')
+      const response = await fetch(`${import.meta.env.BASE_URL}tokens.json`)
       if (!response.ok) throw new Error('Unable to load tokens.json')
       const json: unknown = await response.json()
-      const nextBrands = this._fromDesignTokensFormat(json)
-      this.brands = nextBrands.map((brand) => this._normalizeBrand(brand))
-      this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
-      this._syncExports()
+      const imported = fromDesignTokensFormat(json)
+      if (imported === null || imported.brands.length === 0) throw new Error('The token file does not contain a brands collection.')
+      this._applyBrands(imported.brands, imported.warnings)
     } catch (error) {
       console.warn('Falling back to embedded token defaults:', error)
-      this.brands = structuredClone(defaultJson.brands).map((brand) => this._normalizeBrand(brand))
-      this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
-      this._syncExports()
+      this._applyBrands(createDefaultBrands())
     }
   }
 
@@ -166,188 +109,30 @@ export class TokenSyncApp extends LitElement {
     input.value = ''
     if (!file) return
 
+    if (file.size > MAX_IMPORT_BYTES) {
+      this.fileLoadError = `That file is ${Math.round(file.size / 1024)} kB — imports are limited to ${MAX_IMPORT_BYTES / 1024} kB.`
+      return
+    }
+
     try {
       const json: unknown = JSON.parse(await file.text())
-      const brandsField = json !== null && typeof json === 'object' ? (json as { brands?: unknown }).brands : undefined
-      const nextBrands = this._fromDesignTokensFormat(json)
-      if (!nextBrands.length || nextBrands === defaultJson.brands && !brandsField) {
+      const imported = fromDesignTokensFormat(json)
+      if (imported === null || imported.brands.length === 0) {
         throw new Error('The JSON file does not contain a brands collection.')
       }
 
-      this.brands = nextBrands.map((brand) => this._normalizeBrand(brand))
-      this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
+      this._applyBrands(imported.brands, imported.warnings)
       this.fileLoadError = ''
-      this._syncExports()
     } catch (error) {
-      this.fileLoadError = error instanceof SyntaxError
-        ? 'The selected file is not valid JSON.'
-        : `Unable to load tokens: ${error instanceof Error ? error.message : String(error)}`
+      this.fileLoadError =
+        error instanceof SyntaxError
+          ? 'The selected file is not valid JSON.'
+          : `Unable to load tokens: ${error instanceof Error ? error.message : String(error)}`
     }
-  }
-
-  _fromDesignTokensFormat(json: unknown): Brand[] {
-    if (Array.isArray(json)) return json as Brand[]
-    const brandsField = json !== null && typeof json === 'object' ? (json as { brands?: unknown }).brands : undefined
-    if (Array.isArray(brandsField)) return brandsField as Brand[]
-
-    const brandEntries: [string, unknown][] = brandsField !== null && typeof brandsField === 'object'
-      ? Object.entries(brandsField as Record<string, unknown>)
-      : []
-
-    const brands = brandEntries.map(([id, brand]): Brand => {
-      const brandRecord = asRecord(brand)
-      const brandName = brandRecord.$name
-
-      return {
-        id,
-        name: typeof brandName === 'string' ? brandName : id,
-        themes: Object.fromEntries(
-          Object.entries(brandRecord).filter(([key]) => !key.startsWith('$')).map(([themeName, theme]): [string, ThemeTokens] => [
-            themeName,
-            Object.fromEntries(
-              Object.entries(asRecord(theme)).filter(([key]) => !key.startsWith('$')).map(([sectionName, section]): [string, ColorTokens] => [
-                sectionName,
-                Object.fromEntries(
-                  Object.entries(asRecord(section)).filter(([key]) => !key.startsWith('$')).map(([key, token]): [string, TokenValue] => [
-                    key,
-                    this._toLocalReference(this._normalizeImportedValue(asRecord(token).$value), id, themeName) as TokenValue,
-                  ]),
-                ),
-              ]),
-            ),
-          ]),
-        ),
-      }
-    })
-
-    return brands.length ? brands : defaultJson.brands
-  }
-
-  _toDesignTokensFormat(): DtcgTokenFile {
-    return {
-      $description: 'Exported Tokens',
-      $metadata: {
-        generatedAt: new Date().toISOString(),
-      },
-      brands: Object.fromEntries(this.brands.map((brand): [string, Record<string, Record<string, Record<string, DtcgToken>>>] => [
-        brand.id,
-        {
-          ...Object.fromEntries(Object.entries(brand.themes).map(([themeName, theme]): [string, Record<string, Record<string, DtcgToken>>] => [
-            themeName,
-            Object.fromEntries(Object.entries(theme).map(([sectionName, values]): [string, Record<string, DtcgToken>] => [
-              sectionName,
-              Object.fromEntries(Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => [key, {
-                $value: this._toDtcgValue(value, brand.id, themeName),
-                $type: 'color',
-              }])),
-            ])),
-          ])),
-        },
-      ])),
-    }
-  }
-
-  _toLocalReference(value: unknown, brandId: string, themeName: string): unknown {
-    if (typeof value !== 'string') return value
-    const prefix = `{brands.${brandId}.${themeName}.`
-    if (!value.startsWith(prefix) || !value.endsWith('}')) return value
-    return `{${value.slice(prefix.length, -1)}}`
-  }
-
-  _normalizeImportedValue(value: unknown): unknown {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return value
-    const { hex, alpha } = value as { hex?: unknown; alpha?: unknown }
-    if (typeof hex !== 'string') return value
-
-    const importedAlpha = typeof alpha === 'number' ? alpha : 1
-    if (importedAlpha >= 1) return hex.toUpperCase()
-
-    const channels = [0, 2, 4].map((index) => Number.parseInt(hex.replace('#', '').slice(index, index + 2), 16))
-    return `rgba(${channels.join(', ')}, ${Number(importedAlpha.toFixed(3))})`
-  }
-
-  _toAbsoluteReference(value: TokenValue, brandId: string, themeName: string): TokenValue {
-    if (typeof value !== 'string' || !value.startsWith('{') || !value.endsWith('}')) return value
-    const reference = value.slice(1, -1)
-    if (reference.startsWith('brands.')) return value
-    return `{brands.${brandId}.${themeName}.${reference}}`
-  }
-
-  _toDtcgValue(value: TokenValue, brandId: string, themeName: string): TokenValue {
-    const reference = this._toAbsoluteReference(value, brandId, themeName)
-    if (typeof reference !== 'string' || reference.startsWith('{')) return reference
-
-    const rgba = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0|1|0?\.\d+)\s*\)$/i.exec(reference)
-    const hexMatch = /^#([0-9a-fA-F]{3,8})$/.exec(reference)
-    const hex = hexMatch?.[1]
-    let channels: number[] | null = null
-    if (rgba) channels = rgba.slice(1, 4).map(Number)
-    else if (hex) channels = this._hexChannels(hex)
-
-    if (!channels) return reference
-
-    let alpha = 1
-    if (rgba) alpha = Number(rgba[4])
-    else if (hex?.length === 8) alpha = Number.parseInt(hex.slice(6, 8), 16) / 255
-    const normalizedChannels = channels.map((channel) => channel / 255)
-    const normalizedHex = `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}${alpha < 1 ? Math.round(alpha * 255).toString(16).padStart(2, '0') : ''}`
-
-    return {
-      colorSpace: 'srgb',
-      components: normalizedChannels,
-      alpha,
-      hex: normalizedHex,
-    } satisfies DtcgColorValue
-  }
-
-  _hexChannels(value: string): number[] {
-    const expanded = value.length === 3 || value.length === 4
-      ? value.split('').map((channel) => channel + channel).join('')
-      : value
-    return [0, 2, 4].map((index) => Number.parseInt(expanded.slice(index, index + 2), 16))
-  }
-
-  _normalizeBrand(brand: Brand): Brand {
-    if (!brand?.themes) return brand
-
-    Object.values(brand.themes).forEach((theme) => {
-      if (!theme) return
-      const semantic = theme.semantic
-      if (semantic) {
-        Object.entries(semantic).forEach(([key]) => {
-          const currentValue = semantic[key]
-          if (typeof currentValue !== 'string') {
-            semantic[key] = `{${this._defaultReferenceValue('semantic', key, theme)}}`
-            return
-          }
-
-          if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(currentValue.trim())) {
-            semantic[key] = `{${this._defaultReferenceValue('semantic', key, theme)}}`
-          }
-        })
-      }
-
-      const component = theme.component
-      if (component) {
-        Object.entries(component).forEach(([key]) => {
-          const currentValue = component[key]
-          if (typeof currentValue !== 'string') {
-            component[key] = `{${this._defaultReferenceValue('component', key, theme)}}`
-            return
-          }
-
-          if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(currentValue.trim())) {
-            component[key] = `{${this._defaultReferenceValue('component', key, theme)}}`
-          }
-        })
-      }
-    })
-
-    return brand
   }
 
   downloadTokensFile() {
-    const payload = JSON.stringify(this._toDesignTokensFormat(), null, 2)
+    const payload = JSON.stringify(toDesignTokensFormat(this.brands), null, 2)
     const blob = new Blob([payload], { type: 'application/json' })
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -356,7 +141,8 @@ export class TokenSyncApp extends LitElement {
     document.body.appendChild(link)
     link.click()
     link.remove()
-    URL.revokeObjectURL(href)
+    // Revoking in the same tick can cancel the download in Safari/Firefox.
+    window.setTimeout(() => URL.revokeObjectURL(href), 0)
   }
 
   get currentBrand(): Brand | undefined {
@@ -367,125 +153,23 @@ export class TokenSyncApp extends LitElement {
     return this.currentBrand?.themes?.[this.selectedTheme] ?? {}
   }
 
-  _toKebab(value: string): string {
-    return value
-      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-      .replace(/_/g, '-')
-      .toLowerCase()
-  }
-
-  _normalizeHex(value: unknown): string {
-    if (!value || typeof value !== 'string') return '#000000'
-    const hex = value.trim()
-    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
-      return hex.length === 4
-        ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
-        : hex
-    }
-    if (/^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$/i.test(hex)) {
-      return hex
-    }
-    return '#000000'
-  }
-
-  _resolveReference(value: unknown, theme: ThemeTokens): string {
-    const normalized = this._normalizeImportedValue(value)
-    if (typeof normalized !== 'string') return '#000000'
-    const trimmed = normalized.trim()
-
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      const path = trimmed.slice(1, -1)
-      const parts = path.split('.')
-      let current: unknown = theme
-
-      for (const part of parts) {
-        if (current === null || typeof current !== 'object') return '#000000'
-        current = (current as Record<string, unknown>)[part]
-        if (current === undefined) return '#000000'
-      }
-
-      return this._resolveReference(current, theme)
-    }
-
-    return this._normalizeHex(trimmed)
-  }
-
-  _defaultReferenceValue(section: string, key: string, theme: ThemeTokens): string {
-    const semanticMap: Record<string, string> = {
-      colorBgCanvas: 'primitives.gray50',
-      colorBgElevated: 'primitives.white',
-      colorTextStrong: 'primitives.gray950',
-      colorTextMuted: 'primitives.gray700',
-      colorBorderSubtle: 'primitives.gray200',
-      colorBrandPrimary: 'primitives.brandPrimary500',
-      colorBrandSecondary: 'primitives.brandSecondary500',
-      colorActionText: 'primitives.white',
-      colorSuccess: 'primitives.green500',
-    }
-
-    const componentMap: Record<string, string> = {
-      buttonPrimaryBg: 'semantic.colorBrandPrimary',
-      buttonPrimaryText: 'semantic.colorActionText',
-      buttonSecondaryBg: 'primitives.gray50',
-      buttonSecondaryText: 'semantic.colorTextStrong',
-      cardBg: 'semantic.colorBgElevated',
-      cardBorder: 'semantic.colorBorderSubtle',
-      focusRing: 'semantic.colorBrandPrimary',
-    }
-
-    const map = section === 'semantic' ? semanticMap : componentMap
-    const fallbackKey = Object.entries(theme.primitives ?? {})[0]?.[0]
-    return map[key] ?? (fallbackKey ? `primitives.${fallbackKey}` : 'primitives.white')
-  }
-
-  _referenceOptions(theme: ThemeTokens, currentSection: string | null = null, currentKey: string | null = null): ReferenceOption[] {
-    const options: ReferenceOption[] = []
-    const sections = currentSection === 'semantic'
-      ? ['primitives']
-      : currentSection === 'component'
-        ? ['primitives', 'semantic']
-        : ['primitives']
-
-    const seen = new Set<string>()
-    sections.forEach((section) => {
-      Object.entries(theme[section] ?? {}).forEach(([key, value]) => {
-        const tokenPath = `${section}.${key}`
-        if (tokenPath === `${currentSection}.${currentKey}`) return
-        if (seen.has(tokenPath)) return
-        seen.add(tokenPath)
-
-        options.push({
-          label: tokenPath,
-          value: tokenPath,
-          color: this._resolveReference(value, theme),
-        })
-      })
-    })
-
-    return options
-  }
-
-  _setPrimitiveToken(key: string, value: TokenValue) {
+  /** A colour edited in a primitive token row. */
+  _handleTokenChange(event: CustomEvent<TokenChangeDetail>) {
+    const { section, key, value } = event.detail
     const theme = this.currentThemeTokens
-    const primitives = theme.primitives ?? (theme.primitives = {})
-    primitives[key] = value
+    const tokens = theme[section] ?? (theme[section] = {})
+    tokens[key] = value
     this.requestUpdate()
-    this._syncExports()
   }
 
-  _setLinkedToken(section: string, key: string, value: string) {
-    const theme = this.currentThemeTokens
-    const tokens = theme[section]
-    if (!tokens) return
+  /** A reference picked in a semantic/component token row. */
+  _handleTokenLink(event: CustomEvent<TokenChangeDetail>) {
+    const { section, key, value } = event.detail
+    const tokens = this.currentThemeTokens[section]
+    if (tokens === undefined) return
 
-    if (value.startsWith('#')) {
-      tokens[key] = value
-    } else {
-      tokens[key] = `{${value}}`
-    }
-
+    tokens[key] = value.startsWith('#') ? value : `{${value}}`
     this.requestUpdate()
-    this._syncExports()
   }
 
   _openPrimitiveDialog() {
@@ -515,7 +199,6 @@ export class TokenSyncApp extends LitElement {
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
     this.requestUpdate()
-    this._syncExports()
   }
 
   _openScaleDialog() {
@@ -543,82 +226,90 @@ export class TokenSyncApp extends LitElement {
 
     themes.forEach((theme) => {
       names.forEach((name, index) => {
-        theme.primitives[name] = values[index]
+        theme.primitives[name] = values[index] ?? ''
       })
     })
     this.scaleDialogOpen = false
     this.scaleDialogError = ''
     this.requestUpdate()
-    this._syncExports()
   }
 
-  _createBrand() {
-    const nextName = window.prompt('New brand name', `Brand ${this.brands.length + 1}`)
-    if (!nextName || !nextName.trim()) return
+  _startAddBrand() {
+    this.addingBrand = true
+    this.newBrandName = `Brand ${this.brands.length + 1}`
+  }
 
-    const brandName = nextName.trim()
-    const nextBrand = seedBrand(
+  _cancelAddBrand() {
+    this.addingBrand = false
+    this.newBrandName = ''
+  }
+
+  _createBrand(event: SubmitEvent) {
+    event.preventDefault()
+    const brandName = this.newBrandName.trim()
+    if (brandName === '') return
+
+    const nextBrand = seedBrand(brandName, NEW_BRAND_PALETTE)
+    nextBrand.id = uniqueBrandId(
       brandName,
-      '#3B82F6',
-      '#A855F7',
-      '#F8FAFC',
-      '#0F172A',
-      '#0F172A',
-      '#F8FAFC',
+      this.brands.map((brand) => brand.id),
     )
 
     this.brands = [...this.brands, nextBrand]
     this.selectedBrand = nextBrand.id
-    this._syncExports()
+    this.addingBrand = false
+    this.newBrandName = ''
   }
 
-  _syncExports() {
-    const themeData = this.currentThemeTokens
-    const cssLines: string[] = []
+  async _copyToClipboard(value: string, label: string) {
+    if (value === '') return
 
-    Object.entries(themeData).forEach(([section, values]) => {
-      Object.entries(values ?? {}).forEach(([key, value]) => {
-        const resolved = this._resolveReference(value, themeData)
-        const cssVar = `--${section}-${this._toKebab(key)}`
-        cssLines.push(`  ${cssVar}: ${resolved};`)
-      })
-    })
-
-    this.cssOutput = `:root {\n${cssLines.join('\n')}\n}\n`
-  }
-
-  _copyToClipboard(value: string, label: string) {
-    if (!value) return
-    navigator.clipboard.writeText(value).then(() => {
-      window.alert(`${label} copied to clipboard.`)
-    }).catch(() => {
-      window.alert(`${label} ready to copy from the export panel.`)
-    })
-  }
-
-  _themeStyle() {
-    const theme = this.currentThemeTokens
-    const semantic = theme.semantic
-    if (!semantic) return ''
-    const resolved = {
-      canvas: this._resolveReference(semantic.colorBgCanvas, theme),
-      elevated: this._resolveReference(semantic.colorBgElevated, theme),
-      text: this._resolveReference(semantic.colorTextStrong, theme),
-      muted: this._resolveReference(semantic.colorTextMuted, theme),
-      border: this._resolveReference(semantic.colorBorderSubtle, theme),
-      primary: this._resolveReference(semantic.colorBrandPrimary, theme),
-      surface: this._resolveReference(theme.component?.cardBg, theme),
+    try {
+      if (navigator.clipboard === undefined) throw new Error('Clipboard API unavailable')
+      await navigator.clipboard.writeText(value)
+      this._showCopyStatus(`${label} copied to clipboard.`)
+    } catch {
+      this._showCopyStatus(`${label} ready to copy from the export panel.`)
     }
-    return `--page-bg:${resolved.canvas};--panel-bg:${resolved.elevated};--text:${resolved.text};--muted:${resolved.muted};--border:${resolved.border};--primary:${resolved.primary};--surface:${resolved.surface};`
+  }
+
+  private _showCopyStatus(message: string) {
+    this.copyStatus = message
+    window.setTimeout(() => {
+      if (this.copyStatus === message) this.copyStatus = ''
+    }, 4000)
+  }
+
+  /** Focus the brand name field as soon as the inline form exists. */
+  updated(changedProperties: PropertyValues<this>) {
+    if (!changedProperties.has('addingBrand') || !this.addingBrand) return
+    this.renderRoot.querySelector<HTMLInputElement>('#new-brand-name')?.select()
+  }
+
+  private _renderImportNotes() {
+    const notes = [
+      ...this.importWarnings,
+      ...this.importIssues.map(
+        (issue) =>
+          `${issue.brandId} / ${issue.theme} / ${issue.section}.${issue.key}: unresolved ${issue.error} reference${issue.reference === undefined ? '' : ` ${issue.reference}`}`,
+      ),
+    ]
+    if (notes.length === 0) return nothing
+
+    return html`
+      <details class="import-notes" aria-live="polite">
+        <summary>${notes.length} ${notes.length === 1 ? 'note' : 'notes'} on the loaded tokens</summary>
+        <ul>
+          ${notes.slice(0, 50).map((note) => html`<li>${note}</li>`)}
+        </ul>
+      </details>
+    `
   }
 
   render() {
     const brand = this.currentBrand
     const theme = this.currentThemeTokens
     if (!brand) return html``
-
-    const semanticRefs = this._referenceOptions(theme, 'semantic')
-    const componentRefs = this._referenceOptions(theme, 'component')
 
     return html`
       <primitive-color-dialog
@@ -634,7 +325,7 @@ export class TokenSyncApp extends LitElement {
         @save=${this._saveScale}
       ></primitive-scale-dialog>
 
-      <div class="app-shell" style=${this._themeStyle()}>
+      <div class="app-shell" style=${buildThemeStyle(theme)}>
         <header class="topbar">
           <div>
             <p class="eyebrow">Design token manager</p>
@@ -642,110 +333,99 @@ export class TokenSyncApp extends LitElement {
           </div>
 
           <div class="toolbar">
-            <label>
+            <label class="toolbar-field">
               <span>Brand</span>
-              <select .value=${this.selectedBrand} @change=${(event: Event) => { this.selectedBrand = (event.target as HTMLSelectElement).value; this._syncExports(); }}>
-                ${this.brands.map(
-                  (item) => html`<option value=${item.id}>${item.name}</option>`,
-                )}
+              <select
+                name="brand"
+                .value=${this.selectedBrand}
+                @change=${(event: Event) => {
+                  this.selectedBrand = (event.target as HTMLSelectElement).value
+                }}
+              >
+                ${this.brands.map((item) => html`<option value=${item.id}>${item.name}</option>`)}
               </select>
             </label>
 
-            <label>
+            <label class="toolbar-field">
               <span>Theme</span>
-              <select .value=${this.selectedTheme} @change=${(event: Event) => { this.selectedTheme = (event.target as HTMLSelectElement).value; this._syncExports(); }}>
+              <select
+                name="theme"
+                .value=${this.selectedTheme}
+                @change=${(event: Event) => {
+                  this.selectedTheme = (event.target as HTMLSelectElement).value
+                }}
+              >
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
               </select>
             </label>
 
-            <button class="ghost" @click=${this._createBrand}>+ Add brand</button>
+            ${
+              this.addingBrand
+                ? html`
+                    <form class="brand-form" @submit=${this._createBrand}>
+                      <label class="toolbar-field">
+                        <span>New brand</span>
+                        <input
+                          id="new-brand-name"
+                          name="new-brand"
+                          type="text"
+                          required
+                          .value=${this.newBrandName}
+                          @input=${(event: Event) => {
+                            this.newBrandName = (event.target as HTMLInputElement).value
+                          }}
+                        />
+                      </label>
+                      <button class="ghost" type="submit">Create</button>
+                      <button class="ghost" type="button" @click=${this._cancelAddBrand}>Cancel</button>
+                    </form>
+                  `
+                : html`<button class="ghost" @click=${this._startAddBrand}>+ Add brand</button>`
+            }
+
             <button class="ghost" @click=${() => this.renderRoot.querySelector<HTMLInputElement>('#json-file-input')?.click()}>Load JSON</button>
             <button class="ghost" @click=${this.downloadTokensFile}>Save JSON</button>
-            <input id="json-file-input" type="file" accept="application/json,.json" hidden @change=${this._loadJsonFile} />
+            <input id="json-file-input" name="tokens-file" type="file" accept="application/json,.json" hidden @change=${this._loadJsonFile} />
           </div>
         </header>
 
-        ${this.fileLoadError ? html`<p class="file-error" role="alert">${this.fileLoadError}</p>` : ''}
+        ${this.fileLoadError ? html`<p class="file-error" role="alert">${this.fileLoadError}</p>` : nothing} ${this._renderImportNotes()}
 
         <main class="layout">
           <section class="token-panel">
-            ${Object.entries(theme).map(
+            ${repeat(
+              Object.entries(theme),
+              ([section]) => section,
               ([section, values]) => html`
                 <article class="token-section">
                   <div class="section-header">
                     <h2>${section}</h2>
                     <span>${Object.keys(values ?? {}).length} tokens</span>
-                    ${section === 'primitives'
-                      ? html`
-                          <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
-                          <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
-                        `
-                      : ''}
+                    ${
+                      section === 'primitives'
+                        ? html`
+                            <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
+                            <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
+                          `
+                        : nothing
+                    }
                   </div>
 
                   <div class="token-grid">
-                    ${Object.entries(values ?? {}).map(([key, value]) => {
-                      const resolved = this._resolveReference(value, theme)
-                      const refValue = typeof value === 'string' && value.startsWith('{')
-                        ? value.slice(1, -1)
-                        : typeof value === 'string' && value.includes('.')
-                          ? value
-                          : null
-
-                      const tokenRefs = section === 'semantic' ? semanticRefs : section === 'component' ? componentRefs : []
-                      const defaultRef = this._defaultReferenceValue(section, key, theme)
-                      const selectedRef = refValue
-                        ? refValue
-                        : defaultRef
-                      const selectedToken = tokenRefs.find((token) => token.value === selectedRef) ?? tokenRefs[0]
-
-                      return html`
-                        <div class="token-row">
-                          <span class="token-name">${this._toKebab(key)}</span>
-
-                          ${section === 'primitives'
-                            ? html`
-                                <tkn-color-input
-                                  .value=${resolved}
-                                  @input=${(event: Event) => this._setPrimitiveToken(key, (event.target as TknColorInput).value)}
-                                ></tkn-color-input>
-                              `
-                            : html`
-                                <div class="token-link-editor">
-                                  <details class="token-menu">
-                                    <summary>
-                                      <span class="token-choice">
-                                        <span class="token-swatch" style=${`background:${selectedToken?.color ?? '#000000'}`}></span>
-                                        <span>${selectedToken?.label ?? selectedRef}</span>
-                                      </span>
-                                    </summary>
-                                    <div class="token-options" role="listbox" aria-label=${this._toKebab(key)}>
-                                      ${tokenRefs.map(
-                                        (token) => html`
-                                          <button
-                                            type="button"
-                                            class=${token.value === selectedRef ? 'token-option selected' : 'token-option'}
-                                            role="option"
-                                            aria-selected=${token.value === selectedRef}
-                                            @click=${(event: Event) => {
-                                              this._setLinkedToken(section, key, token.value)
-                                              const details = (event.currentTarget as HTMLElement | null)?.closest('details')
-                                              if (details) details.open = false
-                                            }}
-                                          >
-                                            <span class="token-swatch" style=${`background:${token.color}`}></span>
-                                            <span>${token.label}</span>
-                                          </button>
-                                        `,
-                                      )}
-                                    </div>
-                                  </details>
-                                </div>
-                              `}
-                        </div>
-                      `
-                    })}
+                    ${repeat(
+                      Object.keys(values ?? {}),
+                      (key) => key,
+                      (key) => html`
+                        <tkn-token-row
+                          token-key=${key}
+                          section=${section}
+                          .theme=${theme}
+                          @token-change=${this._handleTokenChange}
+                          @token-link=${this._handleTokenLink}
+                        ></tkn-token-row>
+                      `,
+                    )}
                   </div>
                 </article>
               `,
@@ -785,7 +465,8 @@ export class TokenSyncApp extends LitElement {
                 <h3>Web CSS vars</h3>
                 <button @click=${() => this._copyToClipboard(this.cssOutput, 'CSS variables')}>Copy</button>
               </div>
-              <textarea readonly .value=${this.cssOutput}></textarea>
+              <textarea name="css-output" readonly aria-label="Exported CSS variables" .value=${this.cssOutput}></textarea>
+              ${this.copyStatus === '' ? nothing : html`<p class="copy-status" role="status">${this.copyStatus}</p>`}
             </div>
           </aside>
         </main>
@@ -802,7 +483,9 @@ export class TokenSyncApp extends LitElement {
       font-family: Inter, 'Segoe UI', sans-serif;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     .app-shell {
       max-width: 1520px;
@@ -846,22 +529,68 @@ export class TokenSyncApp extends LitElement {
       flex-wrap: wrap;
     }
 
-    .file-error {
-      margin: -12px 0 18px;
-      padding: 10px 14px;
-      border: 1px solid #FDA29B;
-      border-radius: 10px;
-      background: #FEF3F2;
-      color: #B42318;
-      font-size: 13px;
-    }
-
-    .toolbar label {
+    .toolbar-field {
       display: flex;
       flex-direction: column;
       gap: 6px;
       font-size: 12px;
       opacity: 0.8;
+    }
+
+    .brand-form {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .brand-form input {
+      min-height: 42px;
+      min-width: 160px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.04);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .import-notes {
+      margin: -12px 0 18px;
+      padding: 10px 14px;
+      border: 1px solid #fdb022;
+      border-radius: 10px;
+      background: #fffaeb;
+      color: #7a2e0e;
+      font-size: 13px;
+    }
+
+    .import-notes summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .import-notes ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+    .import-notes li {
+      margin-bottom: 4px;
+    }
+
+    .copy-status {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .file-error {
+      margin: -12px 0 18px;
+      padding: 10px 14px;
+      border: 1px solid #fda29b;
+      border-radius: 10px;
+      background: #fef3f2;
+      color: #b42318;
+      font-size: 13px;
     }
 
     select,
@@ -956,122 +685,6 @@ export class TokenSyncApp extends LitElement {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
       gap: 12px;
-    }
-
-    .token-row {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 12px;
-      border-radius: 16px;
-      background: rgba(148, 163, 184, 0.05);
-      border: 1px solid rgba(148, 163, 184, 0.2);
-    }
-
-    .token-name {
-      font-size: 12px;
-      opacity: 0.8;
-      text-transform: lowercase;
-    }
-
-    .token-link-editor {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .token-menu {
-      position: relative;
-    }
-
-    .token-menu summary {
-      display: flex;
-      align-items: center;
-      min-height: 42px;
-      padding: 0 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: rgba(15, 23, 42, 0.04);
-      color: var(--text);
-      cursor: pointer;
-      list-style: none;
-    }
-
-    .token-menu summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .token-choice,
-    .token-option {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-    }
-
-    .token-swatch {
-      width: 14px;
-      height: 14px;
-      flex: 0 0 14px;
-      border: 1px solid rgba(15, 23, 42, 0.2);
-      border-radius: 4px;
-    }
-
-    .token-options {
-      position: absolute;
-      z-index: 5;
-      top: calc(100% + 6px);
-      right: 0;
-      left: 0;
-      display: grid;
-      max-height: 240px;
-      overflow: auto;
-      padding: 6px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--panel-bg);
-      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
-    }
-
-    .token-option {
-      width: 100%;
-      justify-content: flex-start;
-      padding: 8px 10px;
-      border: 0;
-      border-radius: 7px;
-      background: transparent;
-      color: var(--text);
-      text-align: left;
-      font-size: 0.85rem;
-      font-weight: 400;
-      letter-spacing: 0;
-    }
-
-    .token-option:hover,
-    .token-option.selected {
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--text);
-    }
-
-    .token-inputs {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-    }
-
-    .token-inputs input[type='color'] {
-      width: 44px;
-      height: 40px;
-      border: none;
-      border-radius: 10px;
-      background: none;
-      padding: 0;
-      cursor: pointer;
-    }
-
-    .token-inputs input[type='text'] {
-      flex: 1;
-      width: 100%;
     }
 
     .preview-card,
