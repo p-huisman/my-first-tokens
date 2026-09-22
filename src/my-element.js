@@ -1,4 +1,5 @@
 import { LitElement, css, html } from 'lit'
+import './primitive-color-dialog.js'
 
 const seedBrand = (brandName, primary, secondary, bgCanvasLight, bgCanvasDark, textStrongLight, textStrongDark) => ({
   id: brandName.toLowerCase().replace(/\s+/g, '-'),
@@ -92,6 +93,8 @@ export class TokenSyncApp extends LitElement {
     selectedTheme: { type: String },
     cssOutput: { type: String },
     figmaOutput: { type: String },
+    primitiveDialogOpen: { type: Boolean },
+    primitiveDialogError: { type: String },
   }
 
   constructor() {
@@ -101,6 +104,8 @@ export class TokenSyncApp extends LitElement {
     this.selectedTheme = 'light'
     this.cssOutput = ''
     this.figmaOutput = ''
+    this.primitiveDialogOpen = false
+    this.primitiveDialogError = ''
   }
 
   connectedCallback() {
@@ -343,6 +348,33 @@ export class TokenSyncApp extends LitElement {
     this._syncExports()
   }
 
+  _openPrimitiveDialog() {
+    this.primitiveDialogError = ''
+    this.primitiveDialogOpen = true
+  }
+
+  _closePrimitiveDialog() {
+    this.primitiveDialogOpen = false
+    this.primitiveDialogError = ''
+  }
+
+  _savePrimitiveToken(event) {
+    const theme = this.currentThemeTokens
+    if (!theme?.primitives) return
+
+    const { tokenName: key, colorValue: value } = event.detail
+    if (theme.primitives[key]) {
+      this.primitiveDialogError = `A primitive named ${key} already exists.`
+      return
+    }
+
+    theme.primitives[key] = value
+    this.primitiveDialogOpen = false
+    this.primitiveDialogError = ''
+    this.requestUpdate()
+    this._syncExports()
+  }
+
   _createBrand() {
     const nextName = window.prompt('New brand name', `Brand ${this.brands.length + 1}`)
     if (!nextName || !nextName.trim()) return
@@ -424,6 +456,13 @@ export class TokenSyncApp extends LitElement {
     const componentRefs = this._referenceOptions(theme, 'component')
 
     return html`
+      <primitive-color-dialog
+        .open=${this.primitiveDialogOpen}
+        .error=${this.primitiveDialogError}
+        @cancel=${this._closePrimitiveDialog}
+        @save=${this._savePrimitiveToken}
+      ></primitive-color-dialog>
+
       <div class="app-shell" style=${this._themeStyle()}>
         <header class="topbar">
           <div>
@@ -462,6 +501,9 @@ export class TokenSyncApp extends LitElement {
                   <div class="section-header">
                     <h2>${section}</h2>
                     <span>${Object.keys(values).length} tokens</span>
+                    ${section === 'primitives'
+                      ? html`<button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>`
+                      : ''}
                   </div>
 
                   <div class="token-grid">
@@ -727,6 +769,13 @@ export class TokenSyncApp extends LitElement {
 
     .section-header span {
       opacity: 0.7;
+      font-size: 12px;
+    }
+
+    .section-action {
+      margin-left: auto;
+      padding: 7px 10px;
+      border-radius: 8px;
       font-size: 12px;
     }
 
