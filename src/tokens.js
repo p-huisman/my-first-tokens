@@ -1,6 +1,7 @@
 import { LitElement, css, html } from 'lit'
 import './primitive-color-dialog.js'
 import './primitive-scale-dialog.js'
+import './color-input.js'
 
 const seedBrand = (brandName, primary, secondary, bgCanvasLight, bgCanvasDark, textStrongLight, textStrongDark) => ({
   id: brandName.toLowerCase().replace(/\s+/g, '-'),
@@ -151,7 +152,7 @@ export class TokenSyncApp extends LitElement {
               Object.fromEntries(
                 Object.entries(section).filter(([key]) => !key.startsWith('$')).map(([key, token]) => [
                   key,
-                  token?.$value,
+                  this._toLocalReference(this._normalizeImportedValue(token?.$value), id, themeName),
                 ]),
               ),
             ]),
@@ -165,24 +166,86 @@ export class TokenSyncApp extends LitElement {
 
   _toDesignTokensFormat() {
     return {
-      $schema: 'https://design-tokens.github.io/community-group/format/',
+      $description: 'Exported Tokens',
+      $metadata: {
+        generatedAt: new Date().toISOString(),
+      },
       brands: Object.fromEntries(this.brands.map((brand) => [
         brand.id,
         {
-          $name: brand.name,
           ...Object.fromEntries(Object.entries(brand.themes).map(([themeName, theme]) => [
             themeName,
             Object.fromEntries(Object.entries(theme).map(([sectionName, values]) => [
               sectionName,
-              {
+              Object.fromEntries(Object.entries(values).map(([key, value]) => [key, {
+                $value: this._toDtcgValue(value, brand.id, themeName),
                 $type: 'color',
-                ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { $value: value }])),
-              },
+              }])),
             ])),
           ])),
         },
       ])),
     }
+  }
+
+  _toLocalReference(value, brandId, themeName) {
+    if (typeof value !== 'string') return value
+    const prefix = `{brands.${brandId}.${themeName}.`
+    if (!value.startsWith(prefix) || !value.endsWith('}')) return value
+    return `{${value.slice(prefix.length, -1)}}`
+  }
+
+  _normalizeImportedValue(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+    if (typeof value.hex !== 'string') return value
+
+    const alpha = typeof value.alpha === 'number' ? value.alpha : 1
+    if (alpha >= 1) return value.hex.toUpperCase()
+
+    const hex = value.hex.replace('#', '')
+    const channels = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16))
+    return `rgba(${channels.join(', ')}, ${Number(alpha.toFixed(3))})`
+  }
+
+  _toAbsoluteReference(value, brandId, themeName) {
+    if (typeof value !== 'string' || !value.startsWith('{') || !value.endsWith('}')) return value
+    const reference = value.slice(1, -1)
+    if (reference.startsWith('brands.')) return value
+    return `{brands.${brandId}.${themeName}.${reference}}`
+  }
+
+  _toDtcgValue(value, brandId, themeName) {
+    const reference = this._toAbsoluteReference(value, brandId, themeName)
+    if (typeof reference !== 'string' || reference.startsWith('{')) return reference
+
+    const rgba = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0|1|0?\.\d+)\s*\)$/i.exec(reference)
+    const hexMatch = /^#([0-9a-fA-F]{3,8})$/.exec(reference)
+    const hex = hexMatch?.[1]
+    let channels = null
+    if (rgba) channels = rgba.slice(1, 4).map(Number)
+    else if (hex) channels = this._hexChannels(hex)
+
+    if (!channels) return reference
+
+    let alpha = 1
+    if (rgba) alpha = Number(rgba[4])
+    else if (hex?.length === 8) alpha = Number.parseInt(hex.slice(6, 8), 16) / 255
+    const normalizedChannels = channels.map((channel) => channel / 255)
+    const normalizedHex = `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}${alpha < 1 ? Math.round(alpha * 255).toString(16).padStart(2, '0') : ''}`
+
+    return {
+      colorSpace: 'srgb',
+      components: normalizedChannels,
+      alpha,
+      hex: normalizedHex,
+    }
+  }
+
+  _hexChannels(value) {
+    const expanded = value.length === 3 || value.length === 4
+      ? value.split('').map((channel) => channel + channel).join('')
+      : value
+    return [0, 2, 4].map((index) => Number.parseInt(expanded.slice(index, index + 2), 16))
   }
 
   _normalizeBrand(brand) {
@@ -254,10 +317,14 @@ export class TokenSyncApp extends LitElement {
         ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
         : hex
     }
+    if (/^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$/i.test(hex)) {
+      return hex
+    }
     return '#000000'
   }
 
   _resolveReference(value, theme) {
+    value = this._normalizeImportedValue(value)
     if (typeof value !== 'string') return '#000000'
     const trimmed = value.trim()
 
@@ -514,8 +581,8 @@ export class TokenSyncApp extends LitElement {
       <div class="app-shell" style=${this._themeStyle()}>
         <header class="topbar">
           <div>
-            <p class="eyebrow">Design token studio</p>
-            <h1>TokenSync</h1>
+            <p class="eyebrow">Design token manager</p>
+            <h1>My first tokens™</h1>
           </div>
 
           <div class="toolbar">
@@ -579,18 +646,10 @@ export class TokenSyncApp extends LitElement {
 
                           ${section === 'primitives'
                             ? html`
-                                <div class="token-inputs">
-                                  <input
-                                    type="color"
-                                    .value=${this._normalizeHex(resolved)}
-                                    @input=${(event) => this._setPrimitiveToken(key, event.target.value)}
-                                  />
-                                  <input
-                                    type="text"
-                                    .value=${resolved}
-                                    @input=${(event) => this._setPrimitiveToken(key, event.target.value)}
-                                  />
-                                </div>
+                                <tkn-color-input
+                                  .value=${resolved}
+                                  @input=${(event) => this._setPrimitiveToken(key, event.target.value)}
+                                ></tkn-color-input>
                               `
                             : html`
                                 <div class="token-link-editor">

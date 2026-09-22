@@ -1,4 +1,5 @@
 import { LitElement, css, html } from 'lit'
+import './color-input.js'
 
 export class PrimitiveColorDialog extends LitElement {
   static properties = {
@@ -45,8 +46,8 @@ export class PrimitiveColorDialog extends LitElement {
       return
     }
 
-    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(colorValue)) {
-      this.error = 'Enter a valid 3- or 6-digit hex color.'
+    if (!this._isColorValue(colorValue)) {
+      this.error = 'Enter a valid hex or rgba color.'
       return
     }
 
@@ -55,6 +56,12 @@ export class PrimitiveColorDialog extends LitElement {
       bubbles: true,
       composed: true,
     }))
+  }
+
+  _isColorValue(value) {
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) return true
+    const match = value.match(/^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$/i)
+    return Boolean(match) && match.slice(1, 4).every((channel) => Number(channel) <= 255)
   }
 
   render() {
@@ -74,13 +81,12 @@ export class PrimitiveColorDialog extends LitElement {
             <input id="token-name" type="text" required .value=${this.tokenName} @input=${(event) => { this.tokenName = event.target.value; this.error = '' }} />
           </label>
 
-          <label>
-            <span>Color value</span>
-            <div class="color-field">
-              <input type="color" required .value=${this.colorValue} @input=${(event) => { this.colorValue = event.target.value; this.error = '' }} />
-              <input type="text" required .value=${this.colorValue} @input=${(event) => { this.colorValue = event.target.value; this.error = '' }} />
-            </div>
-          </label>
+          <tkn-color-input
+            label="Color value"
+            required
+            .value=${this.colorValue}
+            @input=${(event) => { this.colorValue = event.target.value; this.error = '' }}
+          ></tkn-color-input>
 
           ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ''}
 
