@@ -1,5 +1,6 @@
 import { LitElement, css, html } from 'lit'
 import './primitive-color-dialog.js'
+import './primitive-scale-dialog.js'
 
 const seedBrand = (brandName, primary, secondary, bgCanvasLight, bgCanvasDark, textStrongLight, textStrongDark) => ({
   id: brandName.toLowerCase().replace(/\s+/g, '-'),
@@ -95,6 +96,8 @@ export class TokenSyncApp extends LitElement {
     figmaOutput: { type: String },
     primitiveDialogOpen: { type: Boolean },
     primitiveDialogError: { type: String },
+    scaleDialogOpen: { type: Boolean },
+    scaleDialogError: { type: String },
   }
 
   constructor() {
@@ -106,6 +109,8 @@ export class TokenSyncApp extends LitElement {
     this.figmaOutput = ''
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
+    this.scaleDialogOpen = false
+    this.scaleDialogError = ''
   }
 
   connectedCallback() {
@@ -359,18 +364,55 @@ export class TokenSyncApp extends LitElement {
   }
 
   _savePrimitiveToken(event) {
-    const theme = this.currentThemeTokens
-    if (!theme?.primitives) return
+    const brand = this.currentBrand
+    const themes = Object.values(brand?.themes ?? {}).filter((theme) => theme?.primitives)
+    if (!themes.length) return
 
     const { tokenName: key, colorValue: value } = event.detail
-    if (theme.primitives[key]) {
+    if (themes.some((theme) => Object.hasOwn(theme.primitives, key))) {
       this.primitiveDialogError = `A primitive named ${key} already exists.`
       return
     }
 
-    theme.primitives[key] = value
+    themes.forEach((theme) => {
+      theme.primitives[key] = value
+    })
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
+    this.requestUpdate()
+    this._syncExports()
+  }
+
+  _openScaleDialog() {
+    this.scaleDialogError = ''
+    this.scaleDialogOpen = true
+  }
+
+  _closeScaleDialog() {
+    this.scaleDialogOpen = false
+    this.scaleDialogError = ''
+  }
+
+  _saveScale(event) {
+    const brand = this.currentBrand
+    const themes = Object.values(brand?.themes ?? {}).filter((theme) => theme?.primitives)
+    if (!themes.length) return
+
+    const { prefix, steps, values } = event.detail
+    const names = steps.map((step) => `${prefix}${step}`)
+    const duplicate = names.find((name) => themes.some((theme) => Object.hasOwn(theme.primitives, name)))
+    if (duplicate) {
+      this.scaleDialogError = `A primitive named ${duplicate} already exists.`
+      return
+    }
+
+    themes.forEach((theme) => {
+      names.forEach((name, index) => {
+        theme.primitives[name] = values[index]
+      })
+    })
+    this.scaleDialogOpen = false
+    this.scaleDialogError = ''
     this.requestUpdate()
     this._syncExports()
   }
@@ -462,6 +504,12 @@ export class TokenSyncApp extends LitElement {
         @cancel=${this._closePrimitiveDialog}
         @save=${this._savePrimitiveToken}
       ></primitive-color-dialog>
+      <primitive-scale-dialog
+        .open=${this.scaleDialogOpen}
+        .error=${this.scaleDialogError}
+        @cancel=${this._closeScaleDialog}
+        @save=${this._saveScale}
+      ></primitive-scale-dialog>
 
       <div class="app-shell" style=${this._themeStyle()}>
         <header class="topbar">
@@ -502,7 +550,10 @@ export class TokenSyncApp extends LitElement {
                     <h2>${section}</h2>
                     <span>${Object.keys(values).length} tokens</span>
                     ${section === 'primitives'
-                      ? html`<button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>`
+                      ? html`
+                          <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
+                          <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
+                        `
                       : ''}
                   </div>
 
