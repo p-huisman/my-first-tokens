@@ -25,24 +25,48 @@ export class TknColorInput extends LitElement {
     const dialog = this.renderRoot.querySelector('.picker-dialog')
     if (this.pickerOpen && dialog && !dialog.open) {
       const trigger = this.renderRoot.querySelector('.picker-trigger')
-      const rect = trigger.getBoundingClientRect()
-      dialog.style.top = `${rect.bottom + 8}px`
-      dialog.style.left = `${Math.max(8, rect.right - 254)}px`
       dialog.showModal()
+      this._positionPicker(dialog, trigger)
     } else if (!this.pickerOpen && dialog?.open) {
       dialog.close()
     }
+  }
+
+  _positionPicker(dialog = this.renderRoot.querySelector('.picker-dialog'), trigger = this.renderRoot.querySelector('.picker-trigger')) {
+    if (!dialog || !trigger) return
+
+    const triggerRect = trigger.getBoundingClientRect()
+    const pickerRect = dialog.getBoundingClientRect()
+    const gap = 8
+    const margin = 8
+    const maxLeft = Math.max(margin, window.innerWidth - pickerRect.width - margin)
+    const preferredLeft = triggerRect.right - pickerRect.width
+    const left = Math.min(Math.max(margin, preferredLeft), maxLeft)
+    const spaceBelow = window.innerHeight - triggerRect.bottom - gap - margin
+    const spaceAbove = triggerRect.top - gap - margin
+    const top = spaceBelow >= pickerRect.height || spaceBelow >= spaceAbove
+      ? Math.min(triggerRect.bottom + gap, window.innerHeight - pickerRect.height - margin)
+      : Math.max(margin, triggerRect.top - pickerRect.height - gap)
+
+    dialog.style.left = `${left}px`
+    dialog.style.top = `${top}px`
+  }
+
+  _handleWindowResize = () => {
+    if (this.pickerOpen) this._positionPicker()
   }
 
   connectedCallback() {
     super.connectedCallback()
     document.addEventListener('pointerdown', this._handleDocumentPointerDown)
     document.addEventListener('keydown', this._handleDocumentKeyDown)
+    window.addEventListener('resize', this._handleWindowResize)
   }
 
   disconnectedCallback() {
     document.removeEventListener('pointerdown', this._handleDocumentPointerDown)
     document.removeEventListener('keydown', this._handleDocumentKeyDown)
+    window.removeEventListener('resize', this._handleWindowResize)
     super.disconnectedCallback()
   }
 

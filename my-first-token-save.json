@@ -1,7 +1,7 @@
 {
   "$description": "Exported Tokens",
   "$metadata": {
-    "generatedAt": "2026-09-22T18:28:04.007Z"
+    "generatedAt": "2026-09-22T18:48:12.826Z"
   },
   "brands": {
     "northstar": {
@@ -147,6 +147,136 @@
               ],
               "alpha": 1,
               "hex": "#ef4444"
+            },
+            "$type": "color"
+          },
+          "pink50": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.9686274509803922,
+                0.8784313725490196,
+                0.8784313725490196
+              ],
+              "alpha": 1,
+              "hex": "#f7e0e0"
+            },
+            "$type": "color"
+          },
+          "pink100": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.9411764705882353,
+                0.8313725490196079,
+                0.8313725490196079
+              ],
+              "alpha": 1,
+              "hex": "#f0d4d4"
+            },
+            "$type": "color"
+          },
+          "pink200": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.9176470588235294,
+                0.788235294117647,
+                0.788235294117647
+              ],
+              "alpha": 1,
+              "hex": "#eac9c9"
+            },
+            "$type": "color"
+          },
+          "pink300": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8901960784313725,
+                0.7411764705882353,
+                0.7411764705882353
+              ],
+              "alpha": 1,
+              "hex": "#e3bdbd"
+            },
+            "$type": "color"
+          },
+          "pink400": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8666666666666667,
+                0.6941176470588235,
+                0.6941176470588235
+              ],
+              "alpha": 1,
+              "hex": "#ddb1b1"
+            },
+            "$type": "color"
+          },
+          "pink500": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8392156862745098,
+                0.6509803921568628,
+                0.6509803921568628
+              ],
+              "alpha": 1,
+              "hex": "#d6a6a6"
+            },
+            "$type": "color"
+          },
+          "pink600": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8156862745098039,
+                0.6039215686274509,
+                0.6039215686274509
+              ],
+              "alpha": 1,
+              "hex": "#d09a9a"
+            },
+            "$type": "color"
+          },
+          "pink700": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.788235294117647,
+                0.5568627450980392,
+                0.5568627450980392
+              ],
+              "alpha": 1,
+              "hex": "#c98e8e"
+            },
+            "$type": "color"
+          },
+          "pink800": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.7647058823529411,
+                0.5137254901960784,
+                0.5137254901960784
+              ],
+              "alpha": 1,
+              "hex": "#c38383"
+            },
+            "$type": "color"
+          },
+          "pink900": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.7372549019607844,
+                0.4666666666666667,
+                0.4666666666666667
+              ],
+              "alpha": 1,
+              "hex": "#bc7777"
             },
             "$type": "color"
           }
@@ -362,6 +492,136 @@
               ],
               "alpha": 1,
               "hex": "#f87171"
+            },
+            "$type": "color"
+          },
+          "pink50": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.9686274509803922,
+                0.8784313725490196,
+                0.8784313725490196
+              ],
+              "alpha": 1,
+              "hex": "#f7e0e0"
+            },
+            "$type": "color"
+          },
+          "pink100": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.9411764705882353,
+                0.8313725490196079,
+                0.8313725490196079
+              ],
+              "alpha": 1,
+              "hex": "#f0d4d4"
+            },
+            "$type": "color"
+          },
+          "pink200": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.9176470588235294,
+                0.788235294117647,
+                0.788235294117647
+              ],
+              "alpha": 1,
+              "hex": "#eac9c9"
+            },
+            "$type": "color"
+          },
+          "pink300": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8901960784313725,
+                0.7411764705882353,
+                0.7411764705882353
+              ],
+              "alpha": 1,
+              "hex": "#e3bdbd"
+            },
+            "$type": "color"
+          },
+          "pink400": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8666666666666667,
+                0.6941176470588235,
+                0.6941176470588235
+              ],
+              "alpha": 1,
+              "hex": "#ddb1b1"
+            },
+            "$type": "color"
+          },
+          "pink500": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8392156862745098,
+                0.6509803921568628,
+                0.6509803921568628
+              ],
+              "alpha": 1,
+              "hex": "#d6a6a6"
+            },
+            "$type": "color"
+          },
+          "pink600": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.8156862745098039,
+                0.6039215686274509,
+                0.6039215686274509
+              ],
+              "alpha": 1,
+              "hex": "#d09a9a"
+            },
+            "$type": "color"
+          },
+          "pink700": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.788235294117647,
+                0.5568627450980392,
+                0.5568627450980392
+              ],
+              "alpha": 1,
+              "hex": "#c98e8e"
+            },
+            "$type": "color"
+          },
+          "pink800": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.7647058823529411,
+                0.5137254901960784,
+                0.5137254901960784
+              ],
+              "alpha": 1,
+              "hex": "#c38383"
+            },
+            "$type": "color"
+          },
+          "pink900": {
+            "$value": {
+              "colorSpace": "srgb",
+              "components": [
+                0.7372549019607844,
+                0.4666666666666667,
+                0.4666666666666667
+              ],
+              "alpha": 1,
+              "hex": "#bc7777"
             },
             "$type": "color"
           }

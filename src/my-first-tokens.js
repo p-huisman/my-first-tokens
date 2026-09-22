@@ -94,7 +94,6 @@ export class TokenSyncApp extends LitElement {
     selectedBrand: { type: String },
     selectedTheme: { type: String },
     cssOutput: { type: String },
-    figmaOutput: { type: String },
     primitiveDialogOpen: { type: Boolean },
     primitiveDialogError: { type: String },
     scaleDialogOpen: { type: Boolean },
@@ -108,7 +107,6 @@ export class TokenSyncApp extends LitElement {
     this.selectedBrand = this.brands[0].id
     this.selectedTheme = 'light'
     this.cssOutput = ''
-    this.figmaOutput = ''
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
     this.scaleDialogOpen = false
@@ -533,29 +531,16 @@ export class TokenSyncApp extends LitElement {
   _syncExports() {
     const themeData = this.currentThemeTokens
     const cssLines = []
-    const figmaTokens = {
-      $schema: 'https://design-tokens.github.io/design-tokens/schema.json',
-      brand: this.currentBrand?.name ?? 'Brand',
-      theme: this.selectedTheme,
-      tokens: {},
-    }
 
     Object.entries(themeData).forEach(([section, values]) => {
-      figmaTokens.tokens[section] = {}
       Object.entries(values).forEach(([key, value]) => {
         const resolved = this._resolveReference(value, themeData)
         const cssVar = `--${section}-${this._toKebab(key)}`
         cssLines.push(`  ${cssVar}: ${resolved};`)
-        figmaTokens.tokens[section][key] = {
-          $type: 'color',
-          $value: resolved,
-          description: `${this.currentBrand.name} ${this.selectedTheme} ${section}.${key}`,
-        }
       })
     })
 
     this.cssOutput = `:root {\n${cssLines.join('\n')}\n}\n`
-    this.figmaOutput = JSON.stringify(figmaTokens, null, 2)
   }
 
   _copyToClipboard(value, label) {
@@ -755,14 +740,6 @@ export class TokenSyncApp extends LitElement {
                 <button @click=${() => this._copyToClipboard(this.cssOutput, 'CSS variables')}>Copy</button>
               </div>
               <textarea readonly .value=${this.cssOutput}></textarea>
-            </div>
-
-            <div class="export-box">
-              <div class="box-header">
-                <h3>Figma JSON</h3>
-                <button @click=${() => this._copyToClipboard(this.figmaOutput, 'Figma token JSON')}>Copy</button>
-              </div>
-              <textarea readonly .value=${this.figmaOutput}></textarea>
             </div>
           </aside>
         </main>
@@ -1175,4 +1152,4 @@ export class TokenSyncApp extends LitElement {
   `
 }
 
-customElements.define('token-sync-app', TokenSyncApp)
+customElements.define('my-first-tokens', TokenSyncApp)
