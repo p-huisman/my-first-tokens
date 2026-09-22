@@ -1,5 +1,8 @@
 import { LitElement, css, html } from 'lit'
+import type { PropertyValues } from 'lit'
 import './color-input.js'
+import type { TknColorInput } from './color-input.js'
+import type { PrimitiveColorSaveDetail } from './types.js'
 
 export class PrimitiveColorDialog extends LitElement {
   static properties = {
@@ -9,6 +12,11 @@ export class PrimitiveColorDialog extends LitElement {
     colorValue: { type: String },
   }
 
+  declare open: boolean
+  declare error: string
+  declare tokenName: string
+  declare colorValue: string
+
   constructor() {
     super()
     this.open = false
@@ -17,16 +25,16 @@ export class PrimitiveColorDialog extends LitElement {
     this.colorValue = ''
   }
 
-  updated(changedProperties) {
+  updated(changedProperties: PropertyValues<this>) {
     if (!changedProperties.has('open')) return
 
-    const dialog = this.renderRoot.querySelector('dialog')
+    const dialog = this.renderRoot.querySelector<HTMLDialogElement>('dialog')
     if (this.open && dialog && !dialog.open) {
       this.error = ''
       this.tokenName = ''
       this.colorValue = ''
       dialog.showModal()
-      requestAnimationFrame(() => this.renderRoot.querySelector('#token-name')?.focus())
+      requestAnimationFrame(() => this.renderRoot.querySelector<HTMLInputElement>('#token-name')?.focus())
     } else if (!this.open && dialog?.open) {
       dialog.close()
     }
@@ -36,7 +44,7 @@ export class PrimitiveColorDialog extends LitElement {
     this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }))
   }
 
-  _submit(event) {
+  _submit(event: SubmitEvent) {
     event.preventDefault()
     const tokenName = this.tokenName.trim()
     const colorValue = this.colorValue.trim()
@@ -51,22 +59,23 @@ export class PrimitiveColorDialog extends LitElement {
       return
     }
 
-    this.dispatchEvent(new CustomEvent('save', {
+    this.dispatchEvent(new CustomEvent<PrimitiveColorSaveDetail>('save', {
       detail: { tokenName, colorValue },
       bubbles: true,
       composed: true,
     }))
   }
 
-  _isColorValue(value) {
+  _isColorValue(value: string) {
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)) return true
     const match = value.match(/^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$/i)
-    return Boolean(match) && match.slice(1, 4).every((channel) => Number(channel) <= 255)
+    if (!match) return false
+    return match.slice(1, 4).every((channel) => Number(channel) <= 255)
   }
 
   render() {
     return html`
-      <dialog @cancel=${(event) => { event.preventDefault(); this._close() }}>
+      <dialog @cancel=${(event: Event) => { event.preventDefault(); this._close() }}>
         <form method="dialog" @submit=${this._submit}>
           <header>
             <div>
@@ -78,14 +87,14 @@ export class PrimitiveColorDialog extends LitElement {
 
           <label>
             <span>Token name</span>
-            <input id="token-name" type="text" required .value=${this.tokenName} @input=${(event) => { this.tokenName = event.target.value; this.error = '' }} />
+            <input id="token-name" type="text" required .value=${this.tokenName} @input=${(event: Event) => { this.tokenName = (event.target as HTMLInputElement).value; this.error = '' }} />
           </label>
 
           <tkn-color-input
             label="Color value"
             required
             .value=${this.colorValue}
-            @input=${(event) => { this.colorValue = event.target.value; this.error = '' }}
+            @input=${(event: Event) => { this.colorValue = (event.target as TknColorInput).value; this.error = '' }}
           ></tkn-color-input>
 
           ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ''}
@@ -175,3 +184,9 @@ export class PrimitiveColorDialog extends LitElement {
 }
 
 customElements.define('primitive-color-dialog', PrimitiveColorDialog)
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'primitive-color-dialog': PrimitiveColorDialog
+  }
+}

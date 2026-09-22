@@ -1,6 +1,15 @@
 import { LitElement, css, html } from 'lit'
+import type { PropertyValues } from 'lit'
 
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
+const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+
+interface EyeDropperResult {
+  sRGBHex: string
+}
+
+interface EyeDropperConstructor {
+  new (): { open: () => Promise<EyeDropperResult> }
+}
 
 export class TknColorPicker extends LitElement {
   static properties = {
@@ -8,23 +17,26 @@ export class TknColorPicker extends LitElement {
     withAlpha: { type: Boolean, attribute: 'with-alpha' },
   }
 
+  declare value: string
+  declare withAlpha: boolean
+  private hue = 0
+  private saturation = 0
+  private brightness = 1
+  private alpha = 1
+
   constructor() {
     super()
     this.value = ''
     this.withAlpha = false
-    this.hue = 0
-    this.saturation = 0
-    this.brightness = 1
-    this.alpha = 1
   }
 
-  updated(changedProperties) {
+  updated(changedProperties: PropertyValues<this>) {
     if (changedProperties.has('value')) this._setFromValue(this.value)
     this.style.setProperty('--hue', `${this.hue}deg`)
     this.style.setProperty('--hue-color', `hsl(${this.hue} 100% 50%)`)
     this.style.setProperty('--hue-thumb-color', `hsl(${this.hue} 100% 50%)`)
     this.style.setProperty('--current-color', this._rgbString())
-    this.style.setProperty('--alpha', this.alpha)
+    this.style.setProperty('--alpha', String(this.alpha))
     this.style.setProperty('--alpha-thumb-color', this._rgbString())
   }
 
@@ -34,13 +46,14 @@ export class TknColorPicker extends LitElement {
     this.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: nextValue }))
   }
 
-  _setFromValue(value) {
+  _setFromValue(value: string) {
     const match = value?.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0|1|0?\.\d+)\s*\)$/i)
       ?? value?.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i)
-    let rgb
+    let rgb: number[]
     if (match) {
       rgb = [Number(match[1]), Number(match[2]), Number(match[3])]
-      this.alpha = match[4] === undefined ? 1 : Number(match[4])
+      const alphaValue = match[4]
+      this.alpha = alphaValue === undefined ? 1 : Number(alphaValue)
     } else {
       const hex = value?.match(/^#([0-9a-fA-F]{3,8})$/)?.[1]
       if (!hex) return
@@ -51,7 +64,7 @@ export class TknColorPicker extends LitElement {
     this._setHsvFromRgb(rgb)
   }
 
-  _setHsvFromRgb([red, green, blue]) {
+  _setHsvFromRgb([red, green, blue]: number[]) {
     const r = red / 255
     const g = green / 255
     const b = blue / 255
@@ -69,15 +82,15 @@ export class TknColorPicker extends LitElement {
     this.brightness = max
   }
 
-  _rgb() {
+  _rgb(): [number, number, number] {
     const saturation = this.saturation
     const brightness = this.brightness
     const chroma = brightness * saturation
     const x = chroma * (1 - Math.abs((this.hue / 60) % 2 - 1))
     const match = brightness - chroma
     const sector = Math.floor(this.hue / 60)
-    const channels = [[chroma, x, 0], [x, chroma, 0], [0, chroma, x], [0, x, chroma], [x, 0, chroma], [chroma, 0, x]][sector] ?? [0, 0, 0]
-    return channels.map((channel) => Math.round((channel + match) * 255))
+    const channels = ([[chroma, x, 0], [x, chroma, 0], [0, chroma, x], [0, x, chroma], [x, 0, chroma], [chroma, 0, x]] as [number, number, number][])[sector] ?? [0, 0, 0]
+    return channels.map((channel) => Math.round((channel + match) * 255)) as [number, number, number]
   }
 
   _rgbString() {
@@ -97,34 +110,35 @@ export class TknColorPicker extends LitElement {
     return `#${[red, green, blue, alpha].map((channel) => channel.toString(16).padStart(2, '0')).join('').toLowerCase()}`
   }
 
-  _handleTextInput(event) {
-    const value = event.target.value.trim()
+  _handleTextInput(event: Event) {
+    const value = (event.target as HTMLInputElement).value.trim()
     if (!/^#[0-9a-fA-F]{8}$/.test(value) && !/^#[0-9a-fA-F]{6}$/.test(value)) return
     this._setFromValue(value)
     this._emitInput()
   }
 
   async _pickFromScreen() {
-    const EyeDropper = globalThis.EyeDropper
-    if (!EyeDropper) return
-    const result = await new EyeDropper().open()
+    const EyeDropperCtor = (globalThis as unknown as { EyeDropper?: EyeDropperConstructor }).EyeDropper
+    if (!EyeDropperCtor) return
+    const result = await new EyeDropperCtor().open()
     this._setFromValue(result.sRGBHex)
     this._emitInput()
   }
 
-  _updateSurface(event) {
-    const rect = event.currentTarget.getBoundingClientRect()
+  _updateSurface(event: PointerEvent) {
+    const rect = (event.currentTarget as Element).getBoundingClientRect()
     this.saturation = clamp((event.clientX - rect.left) / rect.width, 0, 1)
     this.brightness = clamp(1 - (event.clientY - rect.top) / rect.height, 0, 1)
     this._emitInput()
   }
 
-  _startSurfaceDrag(event) {
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+  _startSurfaceDrag(event: PointerEvent) {
+    const surface = event.currentTarget as Element | null
+    surface?.setPointerCapture?.(event.pointerId)
     this._updateSurface(event)
   }
 
-  _moveSurfaceDrag(event) {
+  _moveSurfaceDrag(event: PointerEvent) {
     if (event.buttons) this._updateSurface(event)
   }
 
@@ -136,8 +150,8 @@ export class TknColorPicker extends LitElement {
           role="slider"
           tabindex="0"
           aria-label="Color saturation and brightness"
-          @pointerdown=${(event) => this._startSurfaceDrag(event)}
-          @pointermove=${(event) => this._moveSurfaceDrag(event)}
+          @pointerdown=${(event: PointerEvent) => this._startSurfaceDrag(event)}
+          @pointermove=${(event: PointerEvent) => this._moveSurfaceDrag(event)}
         >
           <span class="thumb" style=${`left:${this.saturation * 100}%;top:${(1 - this.brightness) * 100}%`}></span>
         </div>
@@ -145,8 +159,8 @@ export class TknColorPicker extends LitElement {
           <span class="preview" style=${`background:${this._formatValue()}`}></span>
           <button class="eyedropper" type="button" aria-label="Pick color from screen" @click=${this._pickFromScreen}>⌕</button>
           <div class="sliders">
-            <input class="hue" type="range" min="0" max="359" aria-label="Hue" .value=${this.hue} @input=${(event) => { this.hue = Number(event.target.value); this._emitInput() }} />
-            ${this.withAlpha ? html`<input class="alpha" type="range" min="0" max="1" step="0.01" aria-label="Alpha" .value=${this.alpha} @input=${(event) => { this.alpha = Number(event.target.value); this._emitInput() }} />` : ''}
+            <input class="hue" type="range" min="0" max="359" aria-label="Hue" .value=${this.hue} @input=${(event: Event) => { this.hue = Number((event.target as HTMLInputElement).value); this._emitInput() }} />
+            ${this.withAlpha ? html`<input class="alpha" type="range" min="0" max="1" step="0.01" aria-label="Alpha" .value=${this.alpha} @input=${(event: Event) => { this.alpha = Number((event.target as HTMLInputElement).value); this._emitInput() }} />` : ''}
           </div>
         </div>
         <input class="hex-input" aria-label="Color value" .value=${this._hex8Value()} @input=${this._handleTextInput} />
@@ -176,3 +190,9 @@ export class TknColorPicker extends LitElement {
 }
 
 customElements.define('tkn-color-picker', TknColorPicker)
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'tkn-color-picker': TknColorPicker
+  }
+}

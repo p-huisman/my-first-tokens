@@ -1,5 +1,7 @@
 import { LitElement, css, html } from 'lit'
+import type { PropertyValues } from 'lit'
 import './color-picker.js'
+import type { TknColorPicker } from './color-picker.js'
 
 export class TknColorInput extends LitElement {
   static properties = {
@@ -10,6 +12,12 @@ export class TknColorInput extends LitElement {
     pickerOpen: { type: Boolean },
   }
 
+  declare value: string
+  declare label: string
+  declare placeholder: string
+  declare required: boolean
+  declare pickerOpen: boolean
+
   constructor() {
     super()
     this.value = ''
@@ -19,12 +27,12 @@ export class TknColorInput extends LitElement {
     this.pickerOpen = false
   }
 
-  updated(changedProperties) {
+  updated(changedProperties: PropertyValues<this>) {
     if (!changedProperties.has('pickerOpen')) return
 
-    const dialog = this.renderRoot.querySelector('.picker-dialog')
+    const dialog = this.renderRoot.querySelector<HTMLDialogElement>('.picker-dialog')
     if (this.pickerOpen && dialog && !dialog.open) {
-      const trigger = this.renderRoot.querySelector('.picker-trigger')
+      const trigger = this.renderRoot.querySelector<HTMLButtonElement>('.picker-trigger')
       dialog.showModal()
       this._positionPicker(dialog, trigger)
     } else if (!this.pickerOpen && dialog?.open) {
@@ -32,7 +40,7 @@ export class TknColorInput extends LitElement {
     }
   }
 
-  _positionPicker(dialog = this.renderRoot.querySelector('.picker-dialog'), trigger = this.renderRoot.querySelector('.picker-trigger')) {
+  _positionPicker(dialog: HTMLDialogElement | null = this.renderRoot.querySelector<HTMLDialogElement>('.picker-dialog'), trigger: HTMLButtonElement | null = this.renderRoot.querySelector<HTMLButtonElement>('.picker-trigger')) {
     if (!dialog || !trigger) return
 
     const triggerRect = trigger.getBoundingClientRect()
@@ -70,13 +78,13 @@ export class TknColorInput extends LitElement {
     super.disconnectedCallback()
   }
 
-  _handleDocumentPointerDown = (event) => {
+  _handleDocumentPointerDown = (event: PointerEvent) => {
     if (this.pickerOpen && !event.composedPath().includes(this)) {
       this._closePicker()
     }
   }
 
-  _handleDocumentKeyDown = (event) => {
+  _handleDocumentKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && this.pickerOpen) {
       event.preventDefault()
       this._closePicker()
@@ -87,13 +95,13 @@ export class TknColorInput extends LitElement {
     this.pickerOpen = false
   }
 
-  _handleInput(event) {
-    this.value = event.target.value
+  _handleInput(event: Event) {
+    this.value = (event.target as HTMLInputElement).value
     this._emitInput()
   }
 
-  _handlePickerInput(event) {
-    this.value = event.target.value
+  _handlePickerInput(event: Event) {
+    this.value = (event.target as TknColorPicker).value
     this._emitInput()
   }
 
@@ -127,8 +135,8 @@ export class TknColorInput extends LitElement {
       </label>
       <dialog
         class="picker-dialog"
-        @cancel=${(event) => { event.preventDefault(); this._closePicker() }}
-        @pointerdown=${(event) => { if (event.target === event.currentTarget) this._closePicker() }}
+        @cancel=${(event: Event) => { event.preventDefault(); this._closePicker() }}
+        @pointerdown=${(event: PointerEvent) => { if (event.target === event.currentTarget) this._closePicker() }}
       >
         <tkn-color-picker .value=${this.value} with-alpha @input=${this._handlePickerInput}></tkn-color-picker>
       </dialog>
@@ -208,3 +216,9 @@ export class TknColorInput extends LitElement {
 }
 
 customElements.define('tkn-color-input', TknColorInput)
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'tkn-color-input': TknColorInput
+  }
+}

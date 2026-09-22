@@ -2,8 +2,22 @@ import { LitElement, css, html } from 'lit'
 import './primitive-color-dialog.js'
 import './primitive-scale-dialog.js'
 import './color-input.js'
+import type { TknColorInput } from './color-input.js'
+import { asRecord, hasPrimitives } from './types.js'
+import type {
+  Brand,
+  ColorTokens,
+  DtcgColorValue,
+  DtcgToken,
+  DtcgTokenFile,
+  PrimitiveColorSaveDetail,
+  ReferenceOption,
+  ScaleSaveDetail,
+  ThemeTokens,
+  TokenValue,
+} from './types.js'
 
-const seedBrand = (brandName, primary, secondary, bgCanvasLight, bgCanvasDark, textStrongLight, textStrongDark) => ({
+const seedBrand = (brandName: string, primary: string, secondary: string, _bgCanvasLight: string, _bgCanvasDark: string, _textStrongLight: string, _textStrongDark: string): Brand => ({
   id: brandName.toLowerCase().replace(/\s+/g, '-'),
   name: brandName,
   themes: {
@@ -80,13 +94,13 @@ const seedBrand = (brandName, primary, secondary, bgCanvasLight, bgCanvasDark, t
   },
 })
 
-const initialBrands = [
+const initialBrands: Brand[] = [
   seedBrand('Northstar', '#2563EB', '#7C3AED', '#F3F7FF', '#0B1220', '#0F172A', '#F8FAFC'),
   seedBrand('Sunset', '#F97316', '#EC4899', '#FFF7ED', '#1A1120', '#1F2937', '#FFF7ED'),
   seedBrand('Evergreen', '#0F766E', '#10B981', '#F0FDF4', '#091B1A', '#0F172A', '#ECFDF5'),
 ]
 
-const defaultJson = { brands: initialBrands }
+const defaultJson: { brands: Brand[] } = { brands: initialBrands }
 
 export class TokenSyncApp extends LitElement {
   static properties = {
@@ -100,6 +114,16 @@ export class TokenSyncApp extends LitElement {
     scaleDialogError: { type: String },
     fileLoadError: { type: String },
   }
+
+  declare brands: Brand[]
+  declare selectedBrand: string
+  declare selectedTheme: string
+  declare cssOutput: string
+  declare primitiveDialogOpen: boolean
+  declare primitiveDialogError: string
+  declare scaleDialogOpen: boolean
+  declare scaleDialogError: string
+  declare fileLoadError: string
 
   constructor() {
     super()
@@ -123,7 +147,7 @@ export class TokenSyncApp extends LitElement {
     try {
       const response = await fetch('/tokens.json')
       if (!response.ok) throw new Error('Unable to load tokens.json')
-      const json = await response.json()
+      const json: unknown = await response.json()
       const nextBrands = this._fromDesignTokensFormat(json)
       this.brands = nextBrands.map((brand) => this._normalizeBrand(brand))
       this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
@@ -136,16 +160,17 @@ export class TokenSyncApp extends LitElement {
     }
   }
 
-  async _loadJsonFile(event) {
-    const input = event.target
+  async _loadJsonFile(event: Event) {
+    const input = event.target as HTMLInputElement
     const file = input.files?.[0]
     input.value = ''
     if (!file) return
 
     try {
-      const json = JSON.parse(await file.text())
+      const json: unknown = JSON.parse(await file.text())
+      const brandsField = json !== null && typeof json === 'object' ? (json as { brands?: unknown }).brands : undefined
       const nextBrands = this._fromDesignTokensFormat(json)
-      if (!nextBrands.length || nextBrands === defaultJson.brands && !json?.brands) {
+      if (!nextBrands.length || nextBrands === defaultJson.brands && !brandsField) {
         throw new Error('The JSON file does not contain a brands collection.')
       }
 
@@ -156,52 +181,62 @@ export class TokenSyncApp extends LitElement {
     } catch (error) {
       this.fileLoadError = error instanceof SyntaxError
         ? 'The selected file is not valid JSON.'
-        : `Unable to load tokens: ${error.message}`
+        : `Unable to load tokens: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 
-  _fromDesignTokensFormat(json) {
-    if (Array.isArray(json)) return json
-    if (Array.isArray(json?.brands)) return json.brands
+  _fromDesignTokensFormat(json: unknown): Brand[] {
+    if (Array.isArray(json)) return json as Brand[]
+    const brandsField = json !== null && typeof json === 'object' ? (json as { brands?: unknown }).brands : undefined
+    if (Array.isArray(brandsField)) return brandsField as Brand[]
 
-    const brands = Object.entries(json?.brands ?? {}).map(([id, brand]) => ({
-      id,
-      name: brand.$name ?? id,
-      themes: Object.fromEntries(
-        Object.entries(brand).filter(([key]) => !key.startsWith('$')).map(([themeName, theme]) => [
-          themeName,
-          Object.fromEntries(
-            Object.entries(theme).filter(([key]) => !key.startsWith('$')).map(([sectionName, section]) => [
-              sectionName,
-              Object.fromEntries(
-                Object.entries(section).filter(([key]) => !key.startsWith('$')).map(([key, token]) => [
-                  key,
-                  this._toLocalReference(this._normalizeImportedValue(token?.$value), id, themeName),
-                ]),
-              ),
-            ]),
-          ),
-        ]),
-      ),
-    }))
+    const brandEntries: [string, unknown][] = brandsField !== null && typeof brandsField === 'object'
+      ? Object.entries(brandsField as Record<string, unknown>)
+      : []
+
+    const brands = brandEntries.map(([id, brand]): Brand => {
+      const brandRecord = asRecord(brand)
+      const brandName = brandRecord.$name
+
+      return {
+        id,
+        name: typeof brandName === 'string' ? brandName : id,
+        themes: Object.fromEntries(
+          Object.entries(brandRecord).filter(([key]) => !key.startsWith('$')).map(([themeName, theme]): [string, ThemeTokens] => [
+            themeName,
+            Object.fromEntries(
+              Object.entries(asRecord(theme)).filter(([key]) => !key.startsWith('$')).map(([sectionName, section]): [string, ColorTokens] => [
+                sectionName,
+                Object.fromEntries(
+                  Object.entries(asRecord(section)).filter(([key]) => !key.startsWith('$')).map(([key, token]): [string, TokenValue] => [
+                    key,
+                    this._toLocalReference(this._normalizeImportedValue(asRecord(token).$value), id, themeName) as TokenValue,
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      }
+    })
 
     return brands.length ? brands : defaultJson.brands
   }
 
-  _toDesignTokensFormat() {
+  _toDesignTokensFormat(): DtcgTokenFile {
     return {
       $description: 'Exported Tokens',
       $metadata: {
         generatedAt: new Date().toISOString(),
       },
-      brands: Object.fromEntries(this.brands.map((brand) => [
+      brands: Object.fromEntries(this.brands.map((brand): [string, Record<string, Record<string, Record<string, DtcgToken>>>] => [
         brand.id,
         {
-          ...Object.fromEntries(Object.entries(brand.themes).map(([themeName, theme]) => [
+          ...Object.fromEntries(Object.entries(brand.themes).map(([themeName, theme]): [string, Record<string, Record<string, DtcgToken>>] => [
             themeName,
-            Object.fromEntries(Object.entries(theme).map(([sectionName, values]) => [
+            Object.fromEntries(Object.entries(theme).map(([sectionName, values]): [string, Record<string, DtcgToken>] => [
               sectionName,
-              Object.fromEntries(Object.entries(values).map(([key, value]) => [key, {
+              Object.fromEntries(Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => [key, {
                 $value: this._toDtcgValue(value, brand.id, themeName),
                 $type: 'color',
               }])),
@@ -212,40 +247,40 @@ export class TokenSyncApp extends LitElement {
     }
   }
 
-  _toLocalReference(value, brandId, themeName) {
+  _toLocalReference(value: unknown, brandId: string, themeName: string): unknown {
     if (typeof value !== 'string') return value
     const prefix = `{brands.${brandId}.${themeName}.`
     if (!value.startsWith(prefix) || !value.endsWith('}')) return value
     return `{${value.slice(prefix.length, -1)}}`
   }
 
-  _normalizeImportedValue(value) {
+  _normalizeImportedValue(value: unknown): unknown {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return value
-    if (typeof value.hex !== 'string') return value
+    const { hex, alpha } = value as { hex?: unknown; alpha?: unknown }
+    if (typeof hex !== 'string') return value
 
-    const alpha = typeof value.alpha === 'number' ? value.alpha : 1
-    if (alpha >= 1) return value.hex.toUpperCase()
+    const importedAlpha = typeof alpha === 'number' ? alpha : 1
+    if (importedAlpha >= 1) return hex.toUpperCase()
 
-    const hex = value.hex.replace('#', '')
-    const channels = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16))
-    return `rgba(${channels.join(', ')}, ${Number(alpha.toFixed(3))})`
+    const channels = [0, 2, 4].map((index) => Number.parseInt(hex.replace('#', '').slice(index, index + 2), 16))
+    return `rgba(${channels.join(', ')}, ${Number(importedAlpha.toFixed(3))})`
   }
 
-  _toAbsoluteReference(value, brandId, themeName) {
+  _toAbsoluteReference(value: TokenValue, brandId: string, themeName: string): TokenValue {
     if (typeof value !== 'string' || !value.startsWith('{') || !value.endsWith('}')) return value
     const reference = value.slice(1, -1)
     if (reference.startsWith('brands.')) return value
     return `{brands.${brandId}.${themeName}.${reference}}`
   }
 
-  _toDtcgValue(value, brandId, themeName) {
+  _toDtcgValue(value: TokenValue, brandId: string, themeName: string): TokenValue {
     const reference = this._toAbsoluteReference(value, brandId, themeName)
     if (typeof reference !== 'string' || reference.startsWith('{')) return reference
 
     const rgba = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0|1|0?\.\d+)\s*\)$/i.exec(reference)
     const hexMatch = /^#([0-9a-fA-F]{3,8})$/.exec(reference)
     const hex = hexMatch?.[1]
-    let channels = null
+    let channels: number[] | null = null
     if (rgba) channels = rgba.slice(1, 4).map(Number)
     else if (hex) channels = this._hexChannels(hex)
 
@@ -262,44 +297,50 @@ export class TokenSyncApp extends LitElement {
       components: normalizedChannels,
       alpha,
       hex: normalizedHex,
-    }
+    } satisfies DtcgColorValue
   }
 
-  _hexChannels(value) {
+  _hexChannels(value: string): number[] {
     const expanded = value.length === 3 || value.length === 4
       ? value.split('').map((channel) => channel + channel).join('')
       : value
     return [0, 2, 4].map((index) => Number.parseInt(expanded.slice(index, index + 2), 16))
   }
 
-  _normalizeBrand(brand) {
+  _normalizeBrand(brand: Brand): Brand {
     if (!brand?.themes) return brand
 
     Object.values(brand.themes).forEach((theme) => {
       if (!theme) return
-      Object.entries(theme.semantic ?? {}).forEach(([key]) => {
-        const currentValue = theme.semantic[key]
-        if (typeof currentValue !== 'string') {
-          theme.semantic[key] = `{${this._defaultReferenceValue('semantic', key, theme)}}`
-          return
-        }
+      const semantic = theme.semantic
+      if (semantic) {
+        Object.entries(semantic).forEach(([key]) => {
+          const currentValue = semantic[key]
+          if (typeof currentValue !== 'string') {
+            semantic[key] = `{${this._defaultReferenceValue('semantic', key, theme)}}`
+            return
+          }
 
-        if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(currentValue.trim())) {
-          theme.semantic[key] = `{${this._defaultReferenceValue('semantic', key, theme)}}`
-        }
-      })
+          if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(currentValue.trim())) {
+            semantic[key] = `{${this._defaultReferenceValue('semantic', key, theme)}}`
+          }
+        })
+      }
 
-      Object.entries(theme.component ?? {}).forEach(([key]) => {
-        const currentValue = theme.component[key]
-        if (typeof currentValue !== 'string') {
-          theme.component[key] = `{${this._defaultReferenceValue('component', key, theme)}}`
-          return
-        }
+      const component = theme.component
+      if (component) {
+        Object.entries(component).forEach(([key]) => {
+          const currentValue = component[key]
+          if (typeof currentValue !== 'string') {
+            component[key] = `{${this._defaultReferenceValue('component', key, theme)}}`
+            return
+          }
 
-        if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(currentValue.trim())) {
-          theme.component[key] = `{${this._defaultReferenceValue('component', key, theme)}}`
-        }
-      })
+          if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(currentValue.trim())) {
+            component[key] = `{${this._defaultReferenceValue('component', key, theme)}}`
+          }
+        })
+      }
     })
 
     return brand
@@ -318,22 +359,22 @@ export class TokenSyncApp extends LitElement {
     URL.revokeObjectURL(href)
   }
 
-  get currentBrand() {
+  get currentBrand(): Brand | undefined {
     return this.brands.find((brand) => brand.id === this.selectedBrand) ?? this.brands[0]
   }
 
-  get currentThemeTokens() {
+  get currentThemeTokens(): ThemeTokens {
     return this.currentBrand?.themes?.[this.selectedTheme] ?? {}
   }
 
-  _toKebab(value) {
+  _toKebab(value: string): string {
     return value
       .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
       .replace(/_/g, '-')
       .toLowerCase()
   }
 
-  _normalizeHex(value) {
+  _normalizeHex(value: unknown): string {
     if (!value || typeof value !== 'string') return '#000000'
     const hex = value.trim()
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
@@ -347,18 +388,19 @@ export class TokenSyncApp extends LitElement {
     return '#000000'
   }
 
-  _resolveReference(value, theme) {
-    value = this._normalizeImportedValue(value)
-    if (typeof value !== 'string') return '#000000'
-    const trimmed = value.trim()
+  _resolveReference(value: unknown, theme: ThemeTokens): string {
+    const normalized = this._normalizeImportedValue(value)
+    if (typeof normalized !== 'string') return '#000000'
+    const trimmed = normalized.trim()
 
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
       const path = trimmed.slice(1, -1)
       const parts = path.split('.')
-      let current = theme
+      let current: unknown = theme
 
       for (const part of parts) {
-        current = current?.[part]
+        if (current === null || typeof current !== 'object') return '#000000'
+        current = (current as Record<string, unknown>)[part]
         if (current === undefined) return '#000000'
       }
 
@@ -368,8 +410,8 @@ export class TokenSyncApp extends LitElement {
     return this._normalizeHex(trimmed)
   }
 
-  _defaultReferenceValue(section, key, theme) {
-    const semanticMap = {
+  _defaultReferenceValue(section: string, key: string, theme: ThemeTokens): string {
+    const semanticMap: Record<string, string> = {
       colorBgCanvas: 'primitives.gray50',
       colorBgElevated: 'primitives.white',
       colorTextStrong: 'primitives.gray950',
@@ -381,7 +423,7 @@ export class TokenSyncApp extends LitElement {
       colorSuccess: 'primitives.green500',
     }
 
-    const componentMap = {
+    const componentMap: Record<string, string> = {
       buttonPrimaryBg: 'semantic.colorBrandPrimary',
       buttonPrimaryText: 'semantic.colorActionText',
       buttonSecondaryBg: 'primitives.gray50',
@@ -396,15 +438,15 @@ export class TokenSyncApp extends LitElement {
     return map[key] ?? (fallbackKey ? `primitives.${fallbackKey}` : 'primitives.white')
   }
 
-  _referenceOptions(theme, currentSection = null, currentKey = null) {
-    const options = []
+  _referenceOptions(theme: ThemeTokens, currentSection: string | null = null, currentKey: string | null = null): ReferenceOption[] {
+    const options: ReferenceOption[] = []
     const sections = currentSection === 'semantic'
       ? ['primitives']
       : currentSection === 'component'
         ? ['primitives', 'semantic']
         : ['primitives']
 
-    const seen = new Set()
+    const seen = new Set<string>()
     sections.forEach((section) => {
       Object.entries(theme[section] ?? {}).forEach(([key, value]) => {
         const tokenPath = `${section}.${key}`
@@ -423,21 +465,23 @@ export class TokenSyncApp extends LitElement {
     return options
   }
 
-  _setPrimitiveToken(key, value) {
+  _setPrimitiveToken(key: string, value: TokenValue) {
     const theme = this.currentThemeTokens
-    theme.primitives[key] = value
+    const primitives = theme.primitives ?? (theme.primitives = {})
+    primitives[key] = value
     this.requestUpdate()
     this._syncExports()
   }
 
-  _setLinkedToken(section, key, value) {
+  _setLinkedToken(section: string, key: string, value: string) {
     const theme = this.currentThemeTokens
-    if (!theme || !theme[section]) return
+    const tokens = theme[section]
+    if (!tokens) return
 
     if (value.startsWith('#')) {
-      theme[section][key] = value
+      tokens[key] = value
     } else {
-      theme[section][key] = `{${value}}`
+      tokens[key] = `{${value}}`
     }
 
     this.requestUpdate()
@@ -454,9 +498,9 @@ export class TokenSyncApp extends LitElement {
     this.primitiveDialogError = ''
   }
 
-  _savePrimitiveToken(event) {
+  _savePrimitiveToken(event: CustomEvent<PrimitiveColorSaveDetail>) {
     const brand = this.currentBrand
-    const themes = Object.values(brand?.themes ?? {}).filter((theme) => theme?.primitives)
+    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
     if (!themes.length) return
 
     const { tokenName: key, colorValue: value } = event.detail
@@ -484,9 +528,9 @@ export class TokenSyncApp extends LitElement {
     this.scaleDialogError = ''
   }
 
-  _saveScale(event) {
+  _saveScale(event: CustomEvent<ScaleSaveDetail>) {
     const brand = this.currentBrand
-    const themes = Object.values(brand?.themes ?? {}).filter((theme) => theme?.primitives)
+    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
     if (!themes.length) return
 
     const { prefix, steps, values } = event.detail
@@ -530,10 +574,10 @@ export class TokenSyncApp extends LitElement {
 
   _syncExports() {
     const themeData = this.currentThemeTokens
-    const cssLines = []
+    const cssLines: string[] = []
 
     Object.entries(themeData).forEach(([section, values]) => {
-      Object.entries(values).forEach(([key, value]) => {
+      Object.entries(values ?? {}).forEach(([key, value]) => {
         const resolved = this._resolveReference(value, themeData)
         const cssVar = `--${section}-${this._toKebab(key)}`
         cssLines.push(`  ${cssVar}: ${resolved};`)
@@ -543,7 +587,7 @@ export class TokenSyncApp extends LitElement {
     this.cssOutput = `:root {\n${cssLines.join('\n')}\n}\n`
   }
 
-  _copyToClipboard(value, label) {
+  _copyToClipboard(value: string, label: string) {
     if (!value) return
     navigator.clipboard.writeText(value).then(() => {
       window.alert(`${label} copied to clipboard.`)
@@ -554,15 +598,16 @@ export class TokenSyncApp extends LitElement {
 
   _themeStyle() {
     const theme = this.currentThemeTokens
-    if (!theme?.semantic) return ''
+    const semantic = theme.semantic
+    if (!semantic) return ''
     const resolved = {
-      canvas: this._resolveReference(theme.semantic.colorBgCanvas, theme),
-      elevated: this._resolveReference(theme.semantic.colorBgElevated, theme),
-      text: this._resolveReference(theme.semantic.colorTextStrong, theme),
-      muted: this._resolveReference(theme.semantic.colorTextMuted, theme),
-      border: this._resolveReference(theme.semantic.colorBorderSubtle, theme),
-      primary: this._resolveReference(theme.semantic.colorBrandPrimary, theme),
-      surface: this._resolveReference(theme.component.cardBg, theme),
+      canvas: this._resolveReference(semantic.colorBgCanvas, theme),
+      elevated: this._resolveReference(semantic.colorBgElevated, theme),
+      text: this._resolveReference(semantic.colorTextStrong, theme),
+      muted: this._resolveReference(semantic.colorTextMuted, theme),
+      border: this._resolveReference(semantic.colorBorderSubtle, theme),
+      primary: this._resolveReference(semantic.colorBrandPrimary, theme),
+      surface: this._resolveReference(theme.component?.cardBg, theme),
     }
     return `--page-bg:${resolved.canvas};--panel-bg:${resolved.elevated};--text:${resolved.text};--muted:${resolved.muted};--border:${resolved.border};--primary:${resolved.primary};--surface:${resolved.surface};`
   }
@@ -570,7 +615,7 @@ export class TokenSyncApp extends LitElement {
   render() {
     const brand = this.currentBrand
     const theme = this.currentThemeTokens
-    if (!brand || !theme) return html``
+    if (!brand) return html``
 
     const semanticRefs = this._referenceOptions(theme, 'semantic')
     const componentRefs = this._referenceOptions(theme, 'component')
@@ -599,7 +644,7 @@ export class TokenSyncApp extends LitElement {
           <div class="toolbar">
             <label>
               <span>Brand</span>
-              <select .value=${this.selectedBrand} @change=${(event) => { this.selectedBrand = event.target.value; this._syncExports(); }}>
+              <select .value=${this.selectedBrand} @change=${(event: Event) => { this.selectedBrand = (event.target as HTMLSelectElement).value; this._syncExports(); }}>
                 ${this.brands.map(
                   (item) => html`<option value=${item.id}>${item.name}</option>`,
                 )}
@@ -608,14 +653,14 @@ export class TokenSyncApp extends LitElement {
 
             <label>
               <span>Theme</span>
-              <select .value=${this.selectedTheme} @change=${(event) => { this.selectedTheme = event.target.value; this._syncExports(); }}>
+              <select .value=${this.selectedTheme} @change=${(event: Event) => { this.selectedTheme = (event.target as HTMLSelectElement).value; this._syncExports(); }}>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
               </select>
             </label>
 
             <button class="ghost" @click=${this._createBrand}>+ Add brand</button>
-            <button class="ghost" @click=${() => this.renderRoot.querySelector('#json-file-input').click()}>Load JSON</button>
+            <button class="ghost" @click=${() => this.renderRoot.querySelector<HTMLInputElement>('#json-file-input')?.click()}>Load JSON</button>
             <button class="ghost" @click=${this.downloadTokensFile}>Save JSON</button>
             <input id="json-file-input" type="file" accept="application/json,.json" hidden @change=${this._loadJsonFile} />
           </div>
@@ -630,7 +675,7 @@ export class TokenSyncApp extends LitElement {
                 <article class="token-section">
                   <div class="section-header">
                     <h2>${section}</h2>
-                    <span>${Object.keys(values).length} tokens</span>
+                    <span>${Object.keys(values ?? {}).length} tokens</span>
                     ${section === 'primitives'
                       ? html`
                           <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
@@ -640,7 +685,7 @@ export class TokenSyncApp extends LitElement {
                   </div>
 
                   <div class="token-grid">
-                    ${Object.entries(values).map(([key, value]) => {
+                    ${Object.entries(values ?? {}).map(([key, value]) => {
                       const resolved = this._resolveReference(value, theme)
                       const refValue = typeof value === 'string' && value.startsWith('{')
                         ? value.slice(1, -1)
@@ -663,7 +708,7 @@ export class TokenSyncApp extends LitElement {
                             ? html`
                                 <tkn-color-input
                                   .value=${resolved}
-                                  @input=${(event) => this._setPrimitiveToken(key, event.target.value)}
+                                  @input=${(event: Event) => this._setPrimitiveToken(key, (event.target as TknColorInput).value)}
                                 ></tkn-color-input>
                               `
                             : html`
@@ -683,9 +728,10 @@ export class TokenSyncApp extends LitElement {
                                             class=${token.value === selectedRef ? 'token-option selected' : 'token-option'}
                                             role="option"
                                             aria-selected=${token.value === selectedRef}
-                                            @click=${(event) => {
+                                            @click=${(event: Event) => {
                                               this._setLinkedToken(section, key, token.value)
-                                              event.currentTarget.closest('details').open = false
+                                              const details = (event.currentTarget as HTMLElement | null)?.closest('details')
+                                              if (details) details.open = false
                                             }}
                                           >
                                             <span class="token-swatch" style=${`background:${token.color}`}></span>
@@ -1153,3 +1199,9 @@ export class TokenSyncApp extends LitElement {
 }
 
 customElements.define('my-first-tokens', TokenSyncApp)
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'my-first-tokens': TokenSyncApp
+  }
+}

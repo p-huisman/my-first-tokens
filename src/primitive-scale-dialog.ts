@@ -1,5 +1,8 @@
 import { LitElement, css, html } from 'lit'
+import type { PropertyValues } from 'lit'
 import './color-input.js'
+import type { TknColorInput } from './color-input.js'
+import type { ScaleSaveDetail } from './types.js'
 
 const SCALE_STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]
 
@@ -11,6 +14,11 @@ export class PrimitiveScaleDialog extends LitElement {
 		values: { type: Array },
 	}
 
+	declare open: boolean
+	declare error: string
+	declare prefix: string
+	declare values: string[]
+
 	constructor() {
 		super()
 		this.open = false
@@ -19,16 +27,16 @@ export class PrimitiveScaleDialog extends LitElement {
 		this.values = SCALE_STEPS.map(() => '')
 	}
 
-	updated(changedProperties) {
+	updated(changedProperties: PropertyValues<this>) {
 		if (!changedProperties.has('open')) return
 
-		const dialog = this.renderRoot.querySelector('dialog')
+		const dialog = this.renderRoot.querySelector<HTMLDialogElement>('dialog')
 		if (this.open && dialog && !dialog.open) {
 			this.error = ''
 			this.prefix = ''
 			this.values = SCALE_STEPS.map(() => '')
 			dialog.showModal()
-			requestAnimationFrame(() => this.renderRoot.querySelector('#scale-prefix')?.focus())
+			requestAnimationFrame(() => this.renderRoot.querySelector<HTMLInputElement>('#scale-prefix')?.focus())
 		} else if (!this.open && dialog?.open) {
 			dialog.close()
 		}
@@ -38,12 +46,12 @@ export class PrimitiveScaleDialog extends LitElement {
 		this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }))
 	}
 
-	_setValue(index, value) {
+	_setValue(index: number, value: string) {
 		this.values = this.values.map((current, valueIndex) => valueIndex === index ? value : current)
 		this.error = ''
 	}
 
-	_parseColor(value) {
+	_parseColor(value: string): { channels: number[]; alpha: number } | null {
 		const hexMatch = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(value)
 		if (hexMatch) {
 			const hex = hexMatch[1].length === 3
@@ -68,7 +76,7 @@ export class PrimitiveScaleDialog extends LitElement {
 			return
 		}
 
-		this.values = SCALE_STEPS.map((step, index) => {
+		this.values = SCALE_STEPS.map((_step, index) => {
 			const progress = index / (SCALE_STEPS.length - 1)
 			const channels = start.channels.map((channel, channelIndex) => Math.round(channel + (end.channels[channelIndex] - channel) * progress))
 			const alpha = start.alpha + (end.alpha - start.alpha) * progress
@@ -79,7 +87,7 @@ export class PrimitiveScaleDialog extends LitElement {
 		this.error = ''
 	}
 
-	_submit(event) {
+	_submit(event: SubmitEvent) {
 		event.preventDefault()
 		const prefix = this.prefix.trim()
 		const values = this.values.map((value) => value.trim())
@@ -93,7 +101,7 @@ export class PrimitiveScaleDialog extends LitElement {
 			return
 		}
 
-		this.dispatchEvent(new CustomEvent('save', {
+		this.dispatchEvent(new CustomEvent<ScaleSaveDetail>('save', {
 			detail: { prefix, steps: SCALE_STEPS, values },
 			bubbles: true,
 			composed: true,
@@ -102,7 +110,7 @@ export class PrimitiveScaleDialog extends LitElement {
 
 	render() {
 		return html`
-			<dialog @cancel=${(event) => { event.preventDefault(); this._close() }}>
+			<dialog @cancel=${(event: Event) => { event.preventDefault(); this._close() }}>
 				<form @submit=${this._submit}>
 					<header>
 						<div>
@@ -114,7 +122,7 @@ export class PrimitiveScaleDialog extends LitElement {
 
 					<label>
 						<span>Scale name</span>
-						<input id="scale-prefix" type="text" required placeholder="blue" .value=${this.prefix} @input=${(event) => { this.prefix = event.target.value; this.error = '' }} />
+						<input id="scale-prefix" type="text" required placeholder="blue" .value=${this.prefix} @input=${(event: Event) => { this.prefix = (event.target as HTMLInputElement).value; this.error = '' }} />
 					</label>
 
 					<div class="scale-grid">
@@ -125,7 +133,7 @@ export class PrimitiveScaleDialog extends LitElement {
 									required
 									placeholder="#000000 or rgba(...)"
 									.value=${this.values[index]}
-									@input=${(event) => this._setValue(index, event.target.value)}
+									@input=${(event: Event) => this._setValue(index, (event.target as TknColorInput).value)}
 								></tkn-color-input>
 							</div>
 						`)}
@@ -169,3 +177,9 @@ export class PrimitiveScaleDialog extends LitElement {
 }
 
 customElements.define('primitive-scale-dialog', PrimitiveScaleDialog)
+
+declare global {
+	interface HTMLElementTagNameMap {
+		'primitive-scale-dialog': PrimitiveScaleDialog
+	}
+}
