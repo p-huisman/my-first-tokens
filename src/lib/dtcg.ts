@@ -138,11 +138,18 @@ const toGradientColor = (value: string, brandId: string, themeName: string): str
   return toDtcgValue(reference, brandId, themeName) as string | DtcgColorValue
 }
 
+/**
+ * The `$type` a token value implies. Absolute references
+ * (`{brands.<id>.<theme>.primitives.spatial.spacing-2}`, which is what the Figma
+ * plugin writes) keep their primitive group after the brand prefix, so the group is
+ * looked up anywhere in the path instead of only at the start.
+ */
 const aliasType = (value: TokenValue): 'color' | 'dimension' | 'gradient' => {
-  if (typeof value !== 'string') return 'color'
-  if (value.startsWith('{primitives.gradient.')) return 'gradient'
-  if (value.startsWith('{primitives.spatial.') || value.startsWith('{primitives.structural.')) return 'dimension'
-  return 'color'
+  if (typeof value !== 'string' || !value.startsWith('{')) return 'color'
+
+  const reference = value.slice(1, -1)
+  if (/(^|\.)primitives\.gradient\./.test(reference)) return 'gradient'
+  return /(^|\.)primitives\.(spatial|structural)\./.test(reference) ? 'dimension' : 'color'
 }
 
 /**

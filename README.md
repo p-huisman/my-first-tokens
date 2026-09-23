@@ -4,36 +4,157 @@ TokenSync is a proof of concept for synchronizing design tokens between design t
 
 It loads multi-brand, light/dark token sets from a DTCG-style JSON file, lets you edit primitives and
 re-point semantic/component aliases, previews the result, and exports both CSS custom properties and
-the design-tokens JSON.
+the design-tokens JSON. The same build is published to GitHub Pages, where `tokens.json` doubles as the
+sync source for the bundled Figma plugin.
 
-## Related Figma plugin
+## Publish the editor on GitHub Pages
 
-[Token Forge — Variables Design Sync (Import/Export)](https://www.figma.com/community/plugin/1566133735926608173/token-forge-variables-design-sync-import-export?fuid=822411810889249077)
+Once it is switched on, everything is served from this repository:
 
-## Getting started
+| What       | Address                                                   |
+| ---------- | --------------------------------------------------------- |
+| The editor | `https://p-huisman.github.io/my-first-tokens/`            |
+| The tokens | `https://p-huisman.github.io/my-first-tokens/tokens.json` |
+
+### Switch Pages on (do this once)
+
+1. Open the repository on GitHub and click **Settings**.
+2. In the left sidebar click **Pages**.
+3. Under **Build and deployment**, open the **Source** dropdown and choose **GitHub Actions**.
+4. Go to the **Actions** tab and run the **Deploy to GitHub Pages** workflow once
+   (click the workflow, then **Run workflow**). Any later push to `main` also starts it.
+5. Wait for the green tick, then open `https://p-huisman.github.io/my-first-tokens/` in a browser.
+   You should see the token editor, and the `/tokens.json` address above should show the token file.
+
+From then on every push to `main` republishes the site, including a `tokens.json` that the Figma
+plugin commits for you (see the next section).
+
+### How the addresses work
+
+Vite has to know that the site lives in a subfolder. `vite.config.ts` reads an environment variable
+called `VITE_BASE`, and `.github/workflows/deploy.yml` sets it to `/my-first-tokens/`. That is why the
+deployed HTML points at `/my-first-tokens/assets/…` and the app fetches
+`/my-first-tokens/tokens.json`. Nothing changes locally: `npm run dev`, `npm run preview` and the tests
+all keep running from `/`.
+
+### If the page looks wrong
+
+- Blank page or no styling: open **Actions → Deploy to GitHub Pages** and check that the last run
+  finished successfully.
+- The page loads but shows the built-in sample brands instead of your tokens: open
+  `https://p-huisman.github.io/my-first-tokens/tokens.json` and check whether it is the file you
+  expect (the editor falls back to its embedded defaults when the file cannot be loaded).
+- Moved the repository or renamed it? Update the `VITE_BASE` value in `.github/workflows/deploy.yml`
+  and the default URL in `figma-plugin/src/lib/github.ts` to match.
+
+## Sync tokens with Figma
+
+`figma-plugin/` contains a Figma plugin that moves tokens in both directions:
+
+- **Into Figma** — read the JSON and create or update variable collections, modes, variables and aliases.
+- **Out of Figma** — read the variables back out as the same JSON the editor reads, and optionally
+  commit it to `public/tokens.json` so the page from the previous section updates too.
+
+Under the hood those are two functions in `figma-plugin/src/lib/dtcg-figma.ts`:
+`planDtcgToFigma(json, snapshot, options)` decides what to write, and `figmaToDtcg(snapshot, options)`
+produces the JSON. Both are pure and unit tested; `code.ts` only applies the result to the document.
+
+### Step 1 — build the plugin
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173
+npm run plugin:build
 ```
+
+That creates `figma-plugin/dist/code.js` and `figma-plugin/dist/ui.html`, which are the two files Figma
+loads. While you are changing the plugin, run `npm run plugin:watch` instead — it rebuilds on save.
+
+### Step 2 — load the plugin in Figma (do this once)
+
+1. Open the Figma **desktop app**. Local plugins cannot be imported in the browser version.
+2. Open any Figma file and choose **Plugins → Development → Import plugin from manifest…**
+3. Pick `figma-plugin/manifest.json` from this repository.
+4. The plugin now appears under **Plugins → Development** — run it from there.
+
+### Step 3 — push the tokens into Figma
+
+1. Open the plugin. The source field is already filled in with
+   `https://p-huisman.github.io/my-first-tokens/tokens.json`.
+2. Press **Load URL** — or use **Choose file…** for a local `tokens.json`, or paste the JSON in.
+3. Press **Preview changes** first if you want to see the plan: how many collections, modes, variables
+   and values the sync would create. It writes nothing.
+4. Press **Sync to Figma**. Each brand becomes a variable collection, each theme a mode in it, each
+   token a variable, and each reference a real Figma alias.
+5. Run it again after editing the JSON — unchanged variables and values are left alone, so a second
+   sync normally reports _Already up to date — nothing to write._
+6. _Remove variables and modes that are no longer in the JSON_ is off by default: a sync never deletes
+   anything in Figma unless you tick that box.
+
+### Step 4 — send Figma changes back (optional)
+
+1. In the plugin press **Read Figma variables**. You get a summary such as
+   _2 brands · 4 modes · 116 tokens_, plus a list of anything it had to skip.
+2. Use **Copy JSON** or **Download tokens.json** and commit that file as `public/tokens.json` — or let
+   the plugin commit it for you, which the next two steps set up.
+
+#### Let the plugin commit it (one-time setup)
+
+1. On GitHub open **Settings → Developer settings → Personal access tokens → Fine-grained tokens** and
+   click **Generate new token**.
+2. Under **Repository access** choose _Only select repositories_ and pick `my-first-tokens`.
+3. Under **Permissions → Repository permissions** set **Contents** to **Read and write** (nothing else is
+   needed), then generate the token and copy it.
+4. Open **Push tokens.json to GitHub** in the plugin and paste the token. Leave path
+   `public/tokens.json` and branch `main` as they are.
+5. Press **Push tokens.json**. The commit lands on `main`, the deploy workflow from the previous section
+   republishes the page, and the editor and Figma are in step again.
+6. Tick _Store the token in this plugin_ to keep it for next time, or press **Forget token** to remove
+   it. The token is only kept on your machine, via Figma's client storage — never in the bundle and
+   never in the repository.
+
+Mapping rules, the publishing steps for the Figma Community, and the known limits are in
+[`figma-plugin/README.md`](figma-plugin/README.md).
+
+[Token Forge](https://www.figma.com/community/plugin/1566133735926608173/token-forge-variables-design-sync-import-export?fuid=822411810889249077)
+is an unrelated Community plugin that produces a similar `$extensions` shape.
+
+## Run the editor locally
+
+```sh
+npm install
+npm run dev
+```
+
+Then open <http://localhost:5173>. The editor starts from `public/tokens.json`; if that file cannot be
+loaded it falls back to the brands embedded in `src/lib/seed.ts`, so the page always works.
+
+In the editor itself:
+
+- **Load JSON** reads a token file from your computer, **Save JSON** writes the whole file back out.
+- The left column is for primitives (colours, spacing, sizes, radii, border widths, gradients); the
+  right columns are the semantic and component tokens, where you pick which token they point at.
+- The CSS panel shows the custom properties for the brand and theme you selected, ready to copy.
 
 ## Commands
 
-| Script                            | What it does                                                   |
-| --------------------------------- | -------------------------------------------------------------- |
-| `npm run dev`                     | Vite dev server with HMR                                       |
-| `npm run build`                   | Type check (`tsc --noEmit`) then production build into `dist/` |
-| `npm run preview`                 | Serve the production build locally                             |
-| `npm run typecheck`               | `tsc --noEmit` only                                            |
-| `npm test` / `npm run test:watch` | Vitest unit tests for `src/lib`                                |
-| `npm run lint`                    | oxlint over `src`                                              |
-| `npm run format` / `format:check` | Prettier                                                       |
-| `npm run verify`                  | typecheck + lint + format check + tests + build (what CI runs) |
+| Script                            | What it does                                                       |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `npm run dev`                     | Vite dev server with HMR                                           |
+| `npm run build`                   | Type check (`tsc --noEmit`) then production build into `dist/`     |
+| `npm run preview`                 | Serve the production build locally                                 |
+| `npm run typecheck`               | `tsc --noEmit` for the app and `tsc -p figma-plugin/tsconfig.json` |
+| `npm test` / `npm run test:watch` | Vitest unit tests for `src/lib` and `figma-plugin/src/lib`         |
+| `npm run lint`                    | oxlint over `src` and `figma-plugin`                               |
+| `npm run plugin:build`            | Build the Figma plugin into `figma-plugin/dist`                    |
+| `npm run plugin:watch`            | Rebuild the plugin on change                                       |
+| `npm run format` / `format:check` | Prettier                                                           |
+| `npm run verify`                  | typecheck + lint + format check + tests + app build + plugin build |
 
 ## Architecture
 
 ```
 index.html                     loads /src/my-first-tokens.ts
+vite.config.ts                 base path (VITE_BASE) for GitHub Pages
 src/my-first-tokens.ts         <my-first-tokens> app shell: state, wiring, layout
 src/components/
   token-row.ts                 <tkn-token-row>         one token: colour input or alias picker
@@ -50,6 +171,17 @@ src/lib/                       pure, framework-free logic (fully unit tested)
   guards.ts / types.ts         runtime type guards and the shared model
 public/tokens.json             token data fetched on startup (DTCG shape)
 fixtures/*.json                sample files used by the tests
+figma-plugin/                  Figma plugin: DTCG ⇄ variables (see its README)
+  manifest.json                plugin id, main/ui paths, dynamic-page, network allow-list
+  src/code.ts                  main thread: snapshot → plan → apply, GitHub commit
+  src/ui.ts                    Lit panel (token-sync-plugin-app)
+  src/messages.ts              typed UI ⇄ main-thread protocol
+  src/lib/dtcg-figma.ts        the two sync directions (pure, tested)
+  src/lib/token-path.ts        variable names ⇄ token paths (incl. legacy flat primitives)
+  src/lib/github.ts            Contents API requests + tokens URL loading
+  src/lib/types.ts             snapshot and plan types
+  src/lib/fake-figma.ts        in-memory document used by the tests
+.github/workflows/             ci.yml (checks) and deploy.yml (GitHub Pages)
 ```
 
 The components are deliberately thin: anything that can be expressed without the DOM lives in
@@ -91,6 +223,11 @@ values become `{ value, unit }` with `$type: "dimension"`, and references become
 (`{brands.<id>.<theme>.<section>.<key>}`). Import → export → import is
 round-trip stable, asserted by a test against the shipped token file.
 
+The Figma plugin writes and reads exactly this shape, so a file exported from Figma can be loaded here
+(and committed as `public/tokens.json`) without conversion. Only the plugin adds
+`$extensions["com.figma"]` with the variable ids, which the importer ignores and the plugin reuses to
+keep re-syncs idempotent.
+
 Known limits: references pointing at _another_ brand or theme are preserved but cannot be resolved in
 the editor (they render as the fallback colour), scale interpolation is linear in sRGB, and
 `Generate between` overwrites all ten steps. Typography, motion, and elevation primitives are not
@@ -121,13 +258,15 @@ included yet.
 - `noImplicitOverride` is intentionally off: it would force `static override properties`/`styles`,
   which no Lit starter or example uses.
 - **Tests** run in Vitest (Node environment) and import the fixtures and `public/tokens.json`
-  directly.
+  directly. `figma-plugin/src/lib` is covered the same way: the Figma side is replaced by an
+  in-memory document (`fake-figma.ts`), which is what makes the idempotency and round-trip tests
+  possible without opening Figma.
 
 ## CI
 
-`.github/workflows/ci.yml` runs `npm ci` followed by typecheck, lint, format check, tests and build on
-pushes to `main` and on every pull request.
-
+`.github/workflows/ci.yml` runs `npm ci` followed by typecheck (app + plugin), lint, format check,
+tests, the app build and the plugin build on pushes to `main` and on every pull request.
+`.github/workflows/deploy.yml` publishes the app and `tokens.json` to GitHub Pages from `main`.
 
 ## Links
 

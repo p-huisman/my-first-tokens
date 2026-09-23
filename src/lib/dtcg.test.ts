@@ -128,6 +128,16 @@ describe('toDesignTokensFormat', () => {
     expect(fromDesignTokensFormat(exported)?.brands[0]?.themes.light?.semantic).toEqual(brands[0]?.themes.light?.semantic)
   })
 
+  it('types an absolute reference to a non-colour primitive as a dimension', () => {
+    // The Figma plugin writes absolute references; their `$type` has to survive the prefix.
+    const brands: Brand[] = [
+      { id: 'demo', name: 'Demo', themes: { light: { semantic: { 'layout-gap-default': '{brands.other.light.primitives.spatial.spacing2}' } } } },
+    ]
+    const semantic = (toDesignTokensFormat(brands).brands.demo as { light?: { semantic?: Record<string, { $type: string }> } }).light?.semantic
+
+    expect(semantic?.['layout-gap-default']?.$type).toBe('dimension')
+  })
+
   it('round-trips the shipped token file', () => {
     const imported = fromDesignTokensFormat(shippedTokens)
     const reimported = fromDesignTokensFormat(toDesignTokensFormat(imported!.brands))

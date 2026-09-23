@@ -1,0 +1,217 @@
+import { describe, expect, it } from 'vitest'
+import shippedTokens from '../../../public/tokens.json'
+import gradientTokens from '../../../tokens-with-gradient.json'
+import { fromDesignTokensFormat } from '../../../src/lib/dtcg.js'
+import type { DtcgTokenFile } from '../../../src/lib/types.js'
+import { figmaToDtcg, planDtcgToFigma, readFigmaIds, summarizePlan } from './dtcg-figma.js'
+import type { DtcgToFigmaOptions } from './dtcg-figma.js'
+import { FakeFigmaStore } from './fake-figma.js'
+import type { FigmaSnapshot } from './types.js'
+
+const EMPTY: FigmaSnapshot = { collections: [], variables: [] }
+
+/** Plans a sync and applies it to the fake document, like the plugin does for real. */
+const syncInto = (store: FakeFigmaStore, json: unknown, options: DtcgToFigmaOptions = {}) => {
+  const plan = planDtcgToFigma(json, store.snapshot(), options)
+  store.apply(plan)
+  return plan
+}
+
+type TokenNode = { $value?: unknown; $extensions?: Record<string, Record<string, unknown>> }
+
+/** Reads a token out of an exported file by its token path, for assertions. */
+const tokenNode = (file: DtcgTokenFile, brandId: string, theme: string, path: string): TokenNode | undefined => {
+  let current: unknown = (file.brands[brandId] as Record<string, Record<string, unknown>>)[theme]
+  for (const part of path.split('/')) {
+    if (current === null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[part]
+  }
+  return current === null || current === undefined ? undefined : (current as TokenNode)
+}
+
+describe('planDtcgToFigma', () => {
+  it('creates one collection per brand and names the default mode after the first theme', () => {
+    const plan = planDtcgToFigma(shippedTokens, EMPTY)
+
+    expect(plan.collections).toMatchObject([
+      { brandId: 'northstar', name: 'northstar', defaultModeName: 'light', addModes: [{ name: 'dark' }] },
+      { brandId: 'sunset', name: 'sunset', defaultModeName: 'light', addModes: [{ name: 'dark' }] },
+    ])
+    expect(plan.warnings).toEqual([])
+  })
+
+  it('maps colours, dimensions and aliases onto correctly typed variables', () => {
+    const variables = planDtcgToFigma(shippedTokens, EMPTY).variables
+    const named = (brandId: string, name: string) => variables.find((variable) => variable.brandId === brandId && variable.name === name)
+
+    expect(named('northstar', 'primitives/color/white')).toMatchObject({
+      resolvedType: 'COLOR',
+      codeSyntax: { WEB: 'var(--primitives-color-white)' },
+      values: [
+        { mode: 'light', value: { kind: 'color', value: { r: 1, g: 1, b: 1, a: 1 } } },
+        { mode: 'dark', value: { kind: 'color', value: { r: 1, g: 1, b: 1, a: 1 } } },
+      ],
+    })
+    expect(named('northstar', 'semantic/surface-page-default')?.values[0]?.value).toEqual({
+      kind: 'alias',
+      brandId: 'northstar',
+      name: 'primitives/color/gray50',
+    })
+    expect(named('northstar', 'component/cardBg')?.values[0]?.value).toEqual({ kind: 'alias', brandId: 'northstar', name: 'semantic/surface-panel-elevated' })
+  })
+
+  it('keeps the unit of a dimension in the description, because FLOAT is unitless', () => {
+    const spacing = planDtcgToFigma(shippedTokens, EMPTY).variables.find((variable) => variable.name === 'primitives/spatial/spacing-2')
+
+    expect(spacing).toMatchObject({ resolvedType: 'FLOAT', description: 'DTCG value: 8px' })
+    expect(spacing?.values).toEqual([
+      { mode: 'light', value: { kind: 'number', value: 8, unit: 'px' } },
+      { mode: 'dark', value: { kind: 'number', value: 8, unit: 'px' } },
+    ])
+  })
+
+  it('reports how much a sync would create', () => {
+    const summary = summarizePlan(planDtcgToFigma(shippedTokens, EMPTY))
+
+    expect(summary.collections).toEqual({ create: 2, update: 0 })
+    expect(summary.modes).toEqual({ add: 2, remove: 0, rename: 2 })
+    expect(summary.variables.create).toBeGreaterThan(50)
+    expect(summary.variables.values).toBeGreaterThan(50)
+    expect(summary.variables.remove).toBe(0)
+  })
+
+  it('skips gradients, which Figma has no variable type for', () => {
+    const plan = planDtcgToFigma(gradientTokens, EMPTY)
+
+    expect(plan.warnings.join(' ')).toContain('no gradient variable type')
+    expect(plan.variables.some((variable) => variable.name.startsWith('primitives/gradient/'))).toBe(false)
+    expect(plan.variables.some((variable) => variable.name === 'primitives/color/white')).toBe(true)
+  })
+
+  it('explains a file without brands instead of planning nothing silently', () => {
+    const plan = planDtcgToFigma({ hello: 'world' }, EMPTY)
+
+    expect(plan).toMatchObject({ collections: [], variables: [] })
+    expect(plan.warnings).toHaveLength(1)
+  })
+
+  it('links an alias across brands to the matching mode', () => {
+    const file = {
+      brands: {
+        a: { light: { primitives: { color: { base: '#FF0000' } } }, dark: { primitives: { color: { base: '#000000' } } } },
+        b: { light: { semantic: { 'action-brand-primary': '{brands.a.light.primitives.color.base}' } } },
+      },
+    }
+
+    const plan = planDtcgToFigma(file, EMPTY)
+    expect(plan.warnings).toEqual([])
+    expect(plan.variables.find((variable) => variable.name === 'semantic/action-brand-primary')?.values[0]?.value).toEqual({
+      kind: 'alias',
+      brandId: 'a',
+      name: 'primitives/color/base',
+    })
+  })
+})
+
+describe('figmaToDtcg', () => {
+  it('round-trips the shipped token file through Figma and back', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens)
+
+    const exported = figmaToDtcg(store.snapshot(), { generatedAt: '2026-09-22T18:28:04.007Z' })
+
+    expect(exported.warnings).toEqual([])
+    expect(exported.stats).toMatchObject({ brands: 2, modes: 4, skipped: 0 })
+    expect(fromDesignTokensFormat(exported.file)?.brands).toEqual(fromDesignTokensFormat(shippedTokens)?.brands)
+  })
+
+  it('is idempotent: a second sync has nothing left to do', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens)
+
+    const plan = planDtcgToFigma(shippedTokens, store.snapshot())
+
+    expect(plan.variables).toEqual([])
+    expect(plan.removals).toEqual([])
+    expect(plan.collections.every((collection) => collection.addModes.length === 0 && collection.defaultModeName === undefined)).toBe(true)
+    expect(summarizePlan(plan).variables).toEqual({ create: 0, update: 0, rename: 0, recreate: 0, remove: 0, values: 0 })
+  })
+
+  it('keeps the variable ids so a rename in Figma is corrected instead of duplicated', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens)
+    const exported = figmaToDtcg(store.snapshot()).file
+
+    const variable = store.variablesNamed('primitives/color/white')[0]
+    if (variable === undefined) throw new Error('expected the white primitive to exist')
+    variable.name = 'primitives/color/renamed'
+
+    const write = planDtcgToFigma(exported, store.snapshot()).variables.find((candidate) => candidate.name === 'primitives/color/white')
+    expect(write).toMatchObject({ variableId: variable.id, rename: 'primitives/color/renamed' })
+    expect(readFigmaIds(exported).get('northstar|primitives/color/white')).toBe(variable.id)
+  })
+
+  it('writes com.figma extensions the editor ignores but the plugin reuses', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens)
+
+    const file = figmaToDtcg(store.snapshot()).file
+    const extension = tokenNode(file, 'northstar', 'light', 'primitives/color/white')?.$extensions?.['com.figma']
+
+    expect(extension?.variableId).toBe(store.variablesNamed('primitives/color/white')[0]?.id)
+    expect(extension).toMatchObject({ resolvedType: 'COLOR' })
+  })
+
+  it('only removes variables when pruning is asked for', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens)
+    const collection = store.collectionsNamed('northstar')[0]
+    if (collection === undefined) throw new Error('expected the northstar collection to exist')
+    const leftover = store.addVariable('extra/leftover', collection.id, 'COLOR')
+
+    expect(planDtcgToFigma(shippedTokens, store.snapshot()).removals).toEqual([])
+    expect(planDtcgToFigma(shippedTokens, store.snapshot(), { prune: true }).removals).toEqual([{ variableId: leftover.id, name: 'extra/leftover' }])
+  })
+
+  it('folds a flat legacy primitive into the colour group the editor can read', () => {
+    const store = new FakeFigmaStore()
+    const collection = store.addCollection('Northstar', 'northstar', ['light'])
+    const variable = store.addVariable('primitives/white', collection.id, 'COLOR')
+    store.setValue(variable.id, 'light', { type: 'raw', value: { r: 1, g: 1, b: 1, a: 1 } })
+
+    const exported = figmaToDtcg(store.snapshot())
+
+    expect(exported.warnings.join(' ')).toContain('flat primitive')
+    expect(fromDesignTokensFormat(exported.file)?.brands[0]?.themes.light?.primitives?.color?.white).toBe('#FFFFFF')
+  })
+
+  it('reports variables it cannot represent instead of dropping them silently', () => {
+    const store = new FakeFigmaStore()
+    const collection = store.addCollection('Northstar', 'northstar', ['light'])
+    const flag = store.addVariable('semantic/flag', collection.id, 'BOOLEAN')
+    store.setValue(flag.id, 'light', { type: 'raw', value: true })
+
+    const exported = figmaToDtcg(store.snapshot())
+
+    expect(exported.stats.skipped).toBe(1)
+    expect(exported.warnings.join(' ')).toContain('BOOLEAN')
+  })
+
+  it('can leave the extensions out and relabel the file', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens)
+
+    const file = figmaToDtcg(store.snapshot(), { includeFigmaExtensions: false, description: 'From Figma', generatedAt: '2026-01-01T00:00:00.000Z' }).file
+
+    expect(file.$description).toBe('From Figma')
+    expect(file.$metadata).toEqual({ generatedAt: '2026-01-01T00:00:00.000Z' })
+    expect(tokenNode(file, 'northstar', 'light', 'primitives/color/white')?.$extensions).toBeUndefined()
+  })
+
+  it('ignores collections without variables', () => {
+    const store = new FakeFigmaStore()
+    store.addCollection('Scratch pad')
+
+    expect(figmaToDtcg(store.snapshot())).toMatchObject({ stats: { brands: 0, modes: 0, tokens: 0 } })
+  })
+})

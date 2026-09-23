@@ -7,19 +7,22 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p figma-plugin/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --fix src",
+    "lint": "oxlint src figma-plugin",
+    "lint:fix": "oxlint --fix src figma-plugin",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build"
+    "plugin:build": "node figma-plugin/scripts/build-plugin.mjs",
+    "plugin:watch": "node --watch-path=figma-plugin/src figma-plugin/scripts/build-plugin.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run plugin:build"
   },
   "dependencies": {
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@figma/plugin-typings": "^1.138.0",
     "@types/node": "^26.6.2",
     "oxlint": "^1.85.0",
     "prettier": "^3.9.8",

@@ -1,0 +1,13 @@
+/* Global styles for the plugin iframe. `themeColors: true` in `figma.showUI` puts
+   the Figma colour variables on the document, so light/dark follows the app. */
+:root {
+  color-scheme: light dark;
+  font-family: Inter, 'Segoe UI', sans-serif;
+  font-size: 12px;
+}
+
+body {
+  margin: 0;
+  background: var(--figma-color-bg, #ffffff);
+  color: var(--figma-color-text, #0f172a);
+}

@@ -1,0 +1,13 @@
+{
+  "name": "TokenSync — DTCG ⇄ Figma Variables",
+  "id": "tokensync-dtcg-variables",
+  "api": "1.0.0",
+  "editorType": ["figma"],
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["https://p-huisman.github.io", "https://api.github.com", "https://raw.githubusercontent.com"],
+    "devAllowedDomains": ["http://localhost:5173", "http://localhost:4173"]
+  }
+}

@@ -12,5 +12,14 @@
   "rules": {
     "no-console": "off",
     "no-underscore-dangle": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["figma-plugin/**"],
+      "rules": {
+        "unicorn/require-post-message-target-origin": "off",
+        "unicorn/prefer-add-event-listener": "off"
+      }
+    }
+  ]
 }
