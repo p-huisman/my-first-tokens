@@ -365,6 +365,10 @@ export class TokenSyncApp extends LitElement {
     `
   }
 
+  private _primitiveTokenCount(theme: ThemeTokens): number {
+    return Object.values(theme.primitives ?? {}).reduce((count, group) => count + Object.keys(group ?? {}).length, 0)
+  }
+
   private _renderPrimitiveSection(theme: ThemeTokens) {
     const tokens = theme.primitives?.[this.primitiveFilter] ?? {}
     return html`
@@ -558,7 +562,7 @@ export class TokenSyncApp extends LitElement {
               <div class="mini-stats">
                 <div>
                   <small>Primitives</small>
-                  <strong>${Object.keys(theme.primitives ?? {}).length}</strong>
+                  <strong>${this._primitiveTokenCount(theme)}</strong>
                 </div>
                 <div>
                   <small>Semantic</small>

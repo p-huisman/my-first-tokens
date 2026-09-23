@@ -1,11 +1,11 @@
 ### 1. Spatial & Structural Primitives
-* **Spacing Scale:** Linear or exponential numeric values (usually based on a 4px or 8px grid) used to build semantic layout and component tokens.
+* **~~Spacing Scale~~:** Linear or exponential numeric values (usually based on a 4px or 8px grid) used to build semantic layout and component tokens.
   * *Examples:* `spacing-0`, `spacing-1`, `spacing-2` (representing `0px`, `4px`, `8px` or `0rem`, `0.25rem`, `0.5rem`).
-* **Sizing Scale:** Dimensions used explicitly for component widths, heights, and iconography sizes.
+* **~~Sizing Scale~~:** Dimensions used explicitly for component widths, heights, and iconography sizes.
   * *Examples:* `size-icon-sm`, `size-icon-md`, `size-avatar-lg`.
-* **Border Radii (Corner Rounding):** Geometric curvature values for components, cards, and containers.
+* **~~Border Radii (Corner Rounding)~~:** Geometric curvature values for components, cards, and containers.
   * *Examples:* `radius-none`, `radius-sm`, `radius-md`, `radius-full`.
-* **Border Widths:** Thickness steps for dividers, borders, and focus rings.
+* **~~Border Widths~~:** Thickness steps for dividers, borders, and focus rings.
   * *Examples:* `border-width-thin`, `border-width-medium`, `border-width-thick`.
 
 ### 2. Typographic Primitives
