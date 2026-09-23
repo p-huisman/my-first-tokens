@@ -29,6 +29,11 @@ Once it is switched on, everything is served from this repository:
 From then on every push to `main` republishes the site, including a `tokens.json` that the Figma
 plugin commits for you (see the next section).
 
+> If the workflow runs before Pages is switched on, it stops with the message **GitHub Pages is not
+> enabled** and a link to the settings page. That is expected rather than broken: GitHub's own
+> `configure-pages` action can only switch Pages on with a personal access token, not with the
+> workflow's built-in token, so this one click really is manual. Enable it, then re-run the workflow.
+
 ### How the addresses work
 
 Vite has to know that the site lives in a subfolder. `vite.config.ts` reads an environment variable
@@ -39,6 +44,9 @@ all keep running from `/`.
 
 ### If the page looks wrong
 
+- **The Actions log says "GitHub Pages is not enabled"**: Pages has not been switched on yet — do the
+  steps above (`Settings → Pages → Source: GitHub Actions`) and run the workflow again. Nothing else in
+  the workflow can fail this way.
 - Blank page or no styling: open **Actions → Deploy to GitHub Pages** and check that the last run
   finished successfully.
 - The page loads but shows the built-in sample brands instead of your tokens: open

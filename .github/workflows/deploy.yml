@@ -23,13 +23,40 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      # GitHub Pages has to be switched on once by hand (Settings → Pages → Source:
+      # "GitHub Actions"). `configure-pages` cannot do it with the default token — its
+      # `enablement` option needs a personal access token — so instead of dying with a
+      # bare "Get Pages site failed" this checks first and explains what to do.
+      - name: Check whether Pages is enabled
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 200 → enabled, 404 → not switched on yet, anything else → leave it to the
+          # Pages actions to report the real problem instead of guessing here.
+          status=$(gh api --include "repos/${{ github.repository }}/pages" 2>/dev/null | head -n 1 | awk '{print $2}')
+          case "$status" in
+            200) echo "enabled=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "enabled=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "enabled=unknown" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Explain how to enable Pages
+        if: steps.pages.outputs.enabled == 'false'
+        run: |
+          echo "::error title=GitHub Pages is not enabled::Open https://github.com/${{ github.repository }}/settings/pages, set Source to \"GitHub Actions\", then run this workflow again."
+          exit 1
+
       - run: npm ci
       # `VITE_BASE` rewrites asset + tokens.json URLs to the Pages subpath.
       - run: npm run build
         env:
           VITE_BASE: /my-first-tokens/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+        if: steps.pages.outputs.enabled != 'false'
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.pages.outputs.enabled != 'false'
         with:
           path: dist
 
@@ -41,4 +68,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
