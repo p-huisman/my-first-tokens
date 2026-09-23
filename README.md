@@ -92,7 +92,9 @@ loads. While you are changing the plugin, run `npm run plugin:watch` instead —
 3. Press **Preview changes** first if you want to see the plan: how many collections, modes, variables
    and values the sync would create. It writes nothing.
 4. Press **Sync to Figma**. Each brand becomes a variable collection, each theme a mode in it, each
-   token a variable, and each reference a real Figma alias.
+   token a variable, and each reference a real Figma alias. If Figma refuses a mode (some plans allow
+   only one per collection), the sync still completes and tells you to switch **Variable layout** to
+   _one collection per brand and theme_, which works on every plan.
 5. Run it again after editing the JSON — unchanged variables and values are left alone, so a second
    sync normally reports _Already up to date — nothing to write._
 6. _Remove variables and modes that are no longer in the JSON_ is off by default: a sync never deletes
@@ -187,6 +189,7 @@ figma-plugin/                  Figma plugin: DTCG ⇄ variables (see its README)
   src/lib/dtcg-figma.ts        the two sync directions (pure, tested)
   src/lib/token-path.ts        variable names ⇄ token paths (incl. legacy flat primitives)
   src/lib/github.ts            Contents API requests + tokens URL loading
+  src/lib/plugin-data.ts       shared plugin data keys (brand id, theme)
   src/lib/types.ts             snapshot and plan types
   src/lib/fake-figma.ts        in-memory document used by the tests
 .github/workflows/             ci.yml (checks) and deploy.yml (GitHub Pages)

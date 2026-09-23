@@ -1,5 +1,5 @@
 import type { GitHubSettings } from './lib/github.js'
-import type { SyncReport, SyncSummary } from './lib/types.js'
+import type { SyncLayout, SyncReport, SyncSummary } from './lib/types.js'
 
 /** Settings the plugin stores in `figma.clientStorage`. */
 export interface PluginSettings {
@@ -26,6 +26,8 @@ export type UiToPlugin =
   | { type: 'push-tokens'; json: string; settings: GitHubSettings }
 
 export interface SyncOptions {
+  /** `auto` keeps whatever layout the file already uses. */
+  layout: SyncLayout | 'auto'
   /** Remove Figma variables and modes that are no longer in the DTCG file. */
   prune: boolean
   /** Write `var(--css-variable)` code syntax for Dev Mode. */

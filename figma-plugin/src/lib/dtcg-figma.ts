@@ -27,6 +27,7 @@ import type {
   FigmaValue,
   FigmaVariableSnapshot,
   PlannedValue,
+  SyncLayout,
   SyncPlan,
   SyncSummary,
   TokenKind,
@@ -97,7 +98,15 @@ const parseReference = (value: string, brandId: string, themeName: string): Refe
 /** Figma can only alias a variable of the same resolved type. */
 const resolvedTypeFor = (kind: TokenKind): FigmaResolvedType => (kind === 'dimension' ? 'FLOAT' : kind === 'color' || kind === 'gradient' ? 'COLOR' : 'STRING')
 
-const brandIdOfCollection = (collection: FigmaCollectionSnapshot): string => collection.brandId ?? toBrandId(collection.name)
+const brandIdOfCollection = (collection: FigmaCollectionSnapshot): string => collection.brandId ?? toBrandId(collection.name.split('/')[0] ?? collection.name)
+
+/** The theme a per-theme collection holds, from plugin data or its `brand/theme` name. */
+const themeHintOf = (collection: FigmaCollectionSnapshot): string | undefined => {
+  if (collection.theme !== undefined && collection.theme !== '') return collection.theme
+
+  const suffix = collection.name.split('/')[1]
+  return suffix === undefined || suffix.trim() === '' ? undefined : toBrandId(suffix)
+}
 
 interface SnapshotIndex {
   collections: FigmaCollectionSnapshot[]
@@ -127,6 +136,11 @@ const indexSnapshot = (snapshot: FigmaSnapshot): SnapshotIndex => {
 /** Finds the collection a brand maps to: shared plugin data first, then the name. */
 const findCollection = (index: SnapshotIndex, brand: Brand): FigmaCollectionSnapshot | undefined =>
   index.collectionByBrandId.get(brand.id) ?? index.collections.find((collection) => collection.name === brand.name || toBrandId(collection.name) === brand.id)
+
+/** The collection holding a single theme, in the `collections` layout. */
+const findThemeCollection = (index: SnapshotIndex, brand: Brand, theme: string): FigmaCollectionSnapshot | undefined =>
+  index.collections.find((collection) => collection.brandId === brand.id && collection.theme === theme) ??
+  index.collections.find((collection) => collection.name === `${brand.name}/${theme}` || collection.name === `${brand.id}/${theme}`)
 
 /** The variable a token should update: the DTCG hint first, then the name in its collection. */
 const findVariable = (
@@ -275,7 +289,7 @@ const planValue = (rawValue: TokenValue, context: ValueContext): PlannedValueRes
       if (targetType !== context.resolvedType)
         return { warning: `Skipped the alias on ${label}: the target is a ${targetType} variable and aliases cannot change the type.` }
 
-      return { value: { kind: 'alias', brandId: targetBrandId, name } }
+      return { value: { kind: 'alias', brandId: targetBrandId, theme: reference.theme ?? context.themeName, name } }
     }
   }
 
@@ -313,12 +327,8 @@ const sameScopes = (current: readonly string[], planned: readonly string[]): boo
   current.length === planned.length && current.toSorted().join(',') === planned.toSorted().join(',')
 
 /** Whether Figma already holds the planned value, so unchanged values are never rewritten. */
-const sameValue = (current: FigmaValue, planned: PlannedValue, index: SnapshotIndex, hints: Map<string, string>): boolean => {
-  if (planned.kind === 'alias') {
-    if (current.type !== 'alias') return false
-    const target = findVariable(index, hints, planned.brandId, index.collectionByBrandId.get(planned.brandId)?.id, planned.name)
-    return target !== undefined && target.id === current.id
-  }
+const sameValue = (current: FigmaValue, planned: PlannedValue, aliasTargetId: string | undefined): boolean => {
+  if (planned.kind === 'alias') return current.type === 'alias' && aliasTargetId !== undefined && current.id === aliasTargetId
 
   if (current.type !== 'raw') return false
   if (planned.kind === 'color') {
@@ -335,6 +345,8 @@ const sameValue = (current: FigmaValue, planned: PlannedValue, index: SnapshotIn
 }
 
 export interface DtcgToFigmaOptions {
+  /** How the tokens are laid out in Figma. Defaults to one collection per brand with a mode per theme. */
+  layout?: SyncLayout
   /** Remove variables and modes that are no longer in the DTCG file. */
   prune?: boolean
   /** Write `var(--css-variable)` code syntax, which Dev Mode shows. Defaults to true. */
@@ -356,8 +368,10 @@ interface PendingToken {
 
 interface BrandPlan {
   brand: Brand
-  collection?: FigmaCollectionSnapshot
-  collectionWrite: CollectionWrite
+  /** Collection writes for this brand: one for the brand, or one per theme. */
+  writes: CollectionWrite[]
+  /** Existing collection per theme; the empty key is the brand collection (modes layout). */
+  existing: Map<string, FigmaCollectionSnapshot | undefined>
   pending: Map<string, PendingToken>
 }
 
@@ -368,9 +382,10 @@ interface BrandPlan {
  * preview a sync and tests can assert on it.
  */
 export const planDtcgToFigma = (json: unknown, snapshot: FigmaSnapshot, options: DtcgToFigmaOptions = {}): SyncPlan => {
+  const layout: SyncLayout = options.layout ?? 'modes'
   const imported = fromDesignTokensFormat(json)
   if (imported === null || imported.brands.length === 0) {
-    return { collections: [], variables: [], removals: [], warnings: ['The JSON has no "brands" collection, so there is nothing to sync.'] }
+    return { layout, collections: [], variables: [], removals: [], warnings: ['The JSON has no "brands" collection, so there is nothing to sync.'] }
   }
 
   const warnings = [...imported.warnings]
@@ -379,10 +394,32 @@ export const planDtcgToFigma = (json: unknown, snapshot: FigmaSnapshot, options:
   const plans: BrandPlan[] = []
   const types = new Map<string, FigmaResolvedType>()
 
-  // One collection per brand; every theme becomes a mode.
   for (const brand of imported.brands) {
-    const collection = findCollection(index, brand)
     const themes = Object.keys(brand.themes)
+    const plan: BrandPlan = { brand, writes: [], existing: new Map(), pending: new Map() }
+
+    if (layout === 'collections') {
+      // One collection per brand *and* theme, so nothing here needs a second mode.
+      for (const theme of themes) {
+        const collection = findThemeCollection(index, brand, theme)
+        plan.existing.set(theme, collection)
+        plan.writes.push({
+          brandId: brand.id,
+          theme,
+          name: `${brand.name}/${theme}`,
+          ...(collection === undefined ? {} : { collectionId: collection.id }),
+          defaultModeName: theme,
+          addModes: [],
+          removeModes: [],
+        })
+      }
+
+      plans.push(plan)
+      continue
+    }
+
+    // One collection per brand; every theme becomes a mode.
+    const collection = findCollection(index, brand)
     const knownModes = collection?.modes ?? []
     const covered = new Set(knownModes.map((mode) => mode.name))
     const write: CollectionWrite = {
@@ -413,7 +450,9 @@ export const planDtcgToFigma = (json: unknown, snapshot: FigmaSnapshot, options:
       write.removeModes = knownModes.filter((mode) => mode.id !== collection.defaultModeId && !keep.has(mode.name)).map((mode) => ({ modeId: mode.id }))
     }
 
-    plans.push({ brand, collection, collectionWrite: write, pending: new Map() })
+    plan.existing.set('', collection)
+    plan.writes.push(write)
+    plans.push(plan)
   }
 
   // Every token of every theme, grouped per variable (`brand` + `section/group/key`).
@@ -442,10 +481,11 @@ export const planDtcgToFigma = (json: unknown, snapshot: FigmaSnapshot, options:
     }
   }
 
-  return diffAgainstSnapshot(plans, { index, hints, types, warnings, snapshot, options })
+  return diffAgainstSnapshot(plans, { layout, index, hints, types, warnings, snapshot, options })
 }
 
 interface DiffContext {
+  layout: SyncLayout
   index: SnapshotIndex
   hints: Map<string, string>
   types: Map<string, FigmaResolvedType>
@@ -456,10 +496,95 @@ interface DiffContext {
 
 /** The second half of the planning: what actually has to change in the file. */
 const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan => {
-  const { index, hints, types, warnings, options } = context
+  const { layout, index, hints, types, warnings, options } = context
   const variables: VariableWrite[] = []
   const removals: SyncPlan['removals'] = []
   const warnedUnits = new Set<string>()
+
+  /** One token value in one theme → the value Figma should hold. */
+  const plannedValue = (plan: BrandPlan, token: PendingToken, themeName: string, rawValue: TokenValue): PlannedValue | undefined => {
+    const planned = planValue(rawValue, {
+      brandId: plan.brand.id,
+      themeName,
+      path: token.path,
+      kind: token.kind,
+      resolvedType: token.resolvedType,
+      types,
+      warnedUnits,
+    })
+    if (planned.warning !== undefined) warnings.push(planned.warning)
+
+    return planned.value
+  }
+
+  /** The id of the variable an alias points at, in whichever collection the layout puts it. */
+  const aliasTargetId = (target: { brandId: string; theme: string; name: string }): string | undefined => {
+    const inCollection = (collectionId: string | undefined): string | undefined => findVariable(index, hints, target.brandId, collectionId, target.name)?.id
+
+    if (layout !== 'collections') return inCollection(index.collectionByBrandId.get(target.brandId)?.id)
+
+    const themeCollection = index.collections.find((collection) => brandIdOfCollection(collection) === target.brandId && collection.theme === target.theme)
+    const exact = inCollection(themeCollection?.id)
+    if (exact !== undefined) return exact
+
+    for (const collection of index.collections) {
+      if (brandIdOfCollection(collection) !== target.brandId) continue
+      const found = inCollection(collection.id)
+      if (found !== undefined) return found
+    }
+
+    return undefined
+  }
+
+  /** Whether Figma already holds this value. */
+  const unchanged = (current: FigmaValue | undefined, planned: PlannedValue): boolean =>
+    current !== undefined && sameValue(current, planned, planned.kind === 'alias' ? aliasTargetId(planned) : undefined)
+
+  /** Records a write, unless Figma already holds exactly this. */
+  const record = (
+    token: PendingToken,
+    brandId: string,
+    name: string,
+    theme: string | undefined,
+    existing: FigmaVariableSnapshot | undefined,
+    values: VariableWrite['values'],
+  ): void => {
+    const recreate = existing !== undefined && existing.resolvedType !== token.resolvedType
+    const write: VariableWrite = {
+      brandId,
+      ...(theme === undefined ? {} : { theme }),
+      name,
+      resolvedType: token.resolvedType,
+      values,
+      ...(existing === undefined ? {} : { variableId: existing.id }),
+      ...(existing === undefined || existing.name === name ? {} : { rename: existing.name }),
+      ...(recreate ? { recreate: true } : {}),
+    }
+
+    const description = describeVariable(token.kind, token.values)
+    if (existing === undefined || existing.description !== description) write.description = description
+
+    if (existing === undefined || !sameScopes(existing.scopes, DEFAULT_SCOPES)) write.scopes = [...DEFAULT_SCOPES]
+
+    if (options.codeSyntax !== false) {
+      const codeSyntax = { WEB: `var(${toCssVariable(token.path)})` }
+      if (existing === undefined || existing.codeSyntax.WEB !== codeSyntax.WEB) write.codeSyntax = codeSyntax
+    }
+
+    if (existing === undefined) {
+      if (write.values.length > 0) variables.push(write)
+      return
+    }
+
+    const changed =
+      write.values.length > 0 ||
+      recreate ||
+      write.rename !== undefined ||
+      write.description !== undefined ||
+      write.scopes !== undefined ||
+      write.codeSyntax !== undefined
+    if (changed) variables.push(write)
+  }
 
   for (const plan of plans) {
     for (const [name, token] of plan.pending) {
@@ -468,76 +593,63 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
         continue
       }
 
-      const existing = findVariable(index, hints, plan.brand.id, plan.collection?.id, name)
+      // `collections` layout: the token lives in the collection of each theme, so it is
+      // one variable per theme with a single value instead of one variable with modes.
+      if (layout === 'collections') {
+        for (const [themeName, rawValue] of token.values) {
+          const collection = plan.existing.get(themeName)
+          const existing = findVariable(index, hints, plan.brand.id, collection?.id, name)
+          const recreate = existing !== undefined && existing.resolvedType !== token.resolvedType
+          const planned = plannedValue(plan, token, themeName, rawValue)
+          const values: VariableWrite['values'] = []
+
+          if (planned !== undefined) {
+            const current = collection === undefined ? undefined : existing?.valuesByMode[collection.defaultModeId]
+            if (recreate || !unchanged(current, planned)) values.push({ mode: themeName, value: planned })
+          }
+
+          record(token, plan.brand.id, name, themeName, existing, values)
+        }
+
+        continue
+      }
+
+      // `modes` layout: one variable per brand, holding a value for each mode.
+      const collection = plan.existing.get('')
+      const existing = findVariable(index, hints, plan.brand.id, collection?.id, name)
       const recreate = existing !== undefined && existing.resolvedType !== token.resolvedType
       const values: VariableWrite['values'] = []
 
       for (const [themeName, rawValue] of token.values) {
-        const planned = planValue(rawValue, {
-          brandId: plan.brand.id,
-          themeName,
-          path: token.path,
-          kind: token.kind,
-          resolvedType: token.resolvedType,
-          types,
-          warnedUnits,
-        })
-        if (planned.warning !== undefined) warnings.push(planned.warning)
-        if (planned.value === undefined) continue
+        const planned = plannedValue(plan, token, themeName, rawValue)
+        if (planned === undefined) continue
 
-        const mode = plan.collection?.modes.find((candidate) => candidate.name === themeName)
+        const mode = collection?.modes.find((candidate) => candidate.name === themeName)
         const current = mode === undefined ? undefined : existing?.valuesByMode[mode.id]
-        if (recreate !== true && current !== undefined && sameValue(current, planned.value, index, hints)) continue
-        values.push({ mode: themeName, value: planned.value })
+        if (!recreate && unchanged(current, planned)) continue
+        values.push({ mode: themeName, value: planned })
       }
 
-      if (existing === undefined && values.length === 0) continue
-
-      const write: VariableWrite = {
-        brandId: plan.brand.id,
-        name,
-        resolvedType: token.resolvedType,
-        values,
-        ...(existing === undefined ? {} : { variableId: existing.id }),
-        ...(existing === undefined || existing.name === name ? {} : { rename: existing.name }),
-        ...(recreate === true ? { recreate: true } : {}),
-      }
-
-      const description = describeVariable(token.kind, token.values)
-      if (existing === undefined || existing.description !== description) write.description = description
-
-      if (existing === undefined || !sameScopes(existing.scopes, DEFAULT_SCOPES)) write.scopes = [...DEFAULT_SCOPES]
-
-      if (options.codeSyntax !== false) {
-        const codeSyntax = { WEB: `var(${toCssVariable(token.path)})` }
-        if (existing === undefined || existing.codeSyntax.WEB !== codeSyntax.WEB) write.codeSyntax = codeSyntax
-      }
-
-      const changed =
-        values.length > 0 ||
-        recreate === true ||
-        write.rename !== undefined ||
-        write.description !== undefined ||
-        write.scopes !== undefined ||
-        write.codeSyntax !== undefined
-      if (existing !== undefined && !changed) continue
-
-      variables.push(write)
+      record(token, plan.brand.id, name, undefined, existing, values)
     }
 
-    if (options.prune === true && plan.collection !== undefined) {
+    if (options.prune === true) {
       const keep = new Set(plan.pending.keys())
-      for (const variable of context.snapshot.variables) {
-        if (variable.collectionId === plan.collection.id && !keep.has(variable.name)) removals.push({ variableId: variable.id, name: variable.name })
+      for (const write of plan.writes) {
+        if (write.collectionId === undefined) continue
+        for (const variable of context.snapshot.variables) {
+          if (variable.collectionId === write.collectionId && !keep.has(variable.name)) removals.push({ variableId: variable.id, name: variable.name })
+        }
       }
     }
   }
 
-  return { collections: plans.map((plan) => plan.collectionWrite), variables, removals, warnings }
+  return { layout, collections: plans.flatMap((plan) => plan.writes), variables, removals, warnings }
 }
 
 /** Counts for the preview: what a sync would create, change and remove. */
 export const summarizePlan = (plan: SyncPlan): SyncSummary => ({
+  layout: plan.layout,
   collections: {
     create: plan.collections.filter((collection) => collection.collectionId === undefined).length,
     update: plan.collections.filter((collection) => collection.collectionId !== undefined).length,
@@ -580,6 +692,8 @@ interface CollectionContext {
   themeNames: string[]
   themeByModeName: Map<string, string>
   defaultTheme: string
+  /** Set when the collection holds a single theme (the `collections` layout). */
+  themeHint?: string
 }
 
 /** Theme names are slugged and de-duplicated, because they double as model keys. */
@@ -591,6 +705,12 @@ const themeNamesFor = (collection: FigmaCollectionSnapshot): string[] => {
     names.push(name)
   }
   return names
+}
+
+/** The theme names one collection contributes, and whether it holds a single theme. */
+const themeNamesInCollection = (collection: FigmaCollectionSnapshot): string[] => {
+  const hint = themeHintOf(collection)
+  return hint !== undefined && collection.modes.length <= 1 ? [hint] : themeNamesFor(collection)
 }
 
 /**
@@ -665,8 +785,9 @@ const serializeValue = (raw: FigmaValue, context: SerializeContext): SerializedV
     }
 
     const targetPath = fromVariableName(target.name, target.resolvedType).path
-    // Figma matches modes across collections by name and falls back to the default mode.
-    const theme = targetContext.themeByModeName.get(context.modeName) ?? targetContext.defaultTheme
+    // A per-theme collection knows its theme; otherwise Figma matches modes across
+    // collections by name and falls back to the default mode.
+    const theme = targetContext.themeHint ?? targetContext.themeByModeName.get(context.modeName) ?? targetContext.defaultTheme
     return { value: `{brands.${targetContext.brandId}.${theme}.${toReferencePath(targetPath)}}` }
   }
 
@@ -730,6 +851,10 @@ const injectThemeExtensions = (
  * modes become themes, variable names become token paths and aliases become
  * absolute `{brands.<id>.<theme>.<section>.<group>.<key>}` references.
  *
+ * Both layouts come back out the same way: a collection with several modes holds a
+ * brand with several themes, and collections named `<brand>/<theme>` are merged into
+ * one brand with one theme each.
+ *
  * The output is built with `toDesignTokensFormat`, so an export from Figma is
  * byte-compatible with an export from the editor and keeps the import → export →
  * import round trip stable.
@@ -742,25 +867,50 @@ export const figmaToDtcg = (snapshot: FigmaSnapshot, options: FigmaToDtcgOptions
   const themeSeed = new Map<string, ThemeTokens[]>()
   const usedBrandIds: string[] = []
 
+  // Collections that hold tokens, grouped per brand: one collection per brand in the
+  // `modes` layout, one per brand *and* theme in the `collections` layout.
+  const groups: Array<{ key: string; name: string; collections: FigmaCollectionSnapshot[] }> = []
   for (const collection of snapshot.collections) {
     if (!snapshot.variables.some((variable) => variable.collectionId === collection.id)) continue
 
-    const brandId = uniqueBrandId(brandIdOfCollection(collection), usedBrandIds)
+    const key = brandIdOfCollection(collection)
+    const group = groups.find((candidate) => candidate.key === key)
+    if (group === undefined) groups.push({ key, name: collection.name.split('/')[0] ?? collection.name, collections: [collection] })
+    else group.collections.push(collection)
+  }
+
+  for (const group of groups) {
+    const brandId = uniqueBrandId(group.key, usedBrandIds)
     usedBrandIds.push(brandId)
 
-    const themeNames = themeNamesFor(collection)
-    const defaultIndex = collection.modes.findIndex((mode) => mode.id === collection.defaultModeId)
-    const themes = themeNames.map((): ThemeTokens => ({}))
+    const names: string[] = []
+    const sections: ThemeTokens[] = []
 
-    contexts.set(collection.id, {
-      collectionId: collection.id,
-      brandId,
-      themeNames,
-      themeByModeName: new Map(collection.modes.map((mode, index) => [mode.name, themeNames[index] ?? 'default'])),
-      defaultTheme: themeNames[defaultIndex === -1 ? 0 : defaultIndex] ?? 'default',
-    })
-    themeSeed.set(collection.id, themes)
-    brands.push({ id: brandId, name: collection.name, themes: Object.fromEntries(themeNames.map((name, index) => [name, themes[index] ?? {}])) })
+    for (const collection of group.collections) {
+      const hint = themeHintOf(collection)
+      const candidates = themeNamesInCollection(collection)
+      const themeNames = candidates.map((candidate) => {
+        const name = uniqueBrandId(candidate, names)
+        names.push(name)
+        return name
+      })
+
+      const defaultIndex = collection.modes.findIndex((mode) => mode.id === collection.defaultModeId)
+      const themes = themeNames.map((): ThemeTokens => ({}))
+      sections.push(...themes)
+      themeSeed.set(collection.id, themes)
+
+      contexts.set(collection.id, {
+        collectionId: collection.id,
+        brandId,
+        themeNames,
+        themeByModeName: new Map(collection.modes.map((mode, index) => [mode.name, themeNames[index] ?? 'default'])),
+        defaultTheme: themeNames[defaultIndex === -1 ? 0 : defaultIndex] ?? 'default',
+        ...(hint === undefined ? {} : { themeHint: hint }),
+      })
+    }
+
+    brands.push({ id: brandId, name: group.name, themes: Object.fromEntries(names.map((name, index) => [name, sections[index] ?? {}])) })
   }
 
   const extensions = new Map<string, Record<string, unknown>>()

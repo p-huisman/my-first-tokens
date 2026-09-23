@@ -16,7 +16,6 @@ import type {
   SyncPlan,
   VariableWrite,
 } from './types.js'
-
 /** What Figma calls the mode it creates together with a collection. */
 const FIGMA_DEFAULT_MODE = 'Mode 1'
 
@@ -49,15 +48,17 @@ export class FakeFigmaStore {
   }
 
   /** `figma.variables.createVariableCollection` — one default mode, like Figma. */
-  addCollection(name: string, brandId?: string, modeNames: readonly string[] = [FIGMA_DEFAULT_MODE]): FigmaCollectionSnapshot {
+  addCollection(name: string, options: { brandId?: string; theme?: string; modes?: readonly string[] } = {}): FigmaCollectionSnapshot {
     const id = this.nextId('VariableCollectionId')
+    const modeNames = options.modes ?? [FIGMA_DEFAULT_MODE]
     const modes = modeNames.map((modeName) => ({ id: this.nextId('Mode'), name: modeName }))
     const collection: FigmaCollectionSnapshot = {
       id,
       name,
       defaultModeId: modes[0]?.id ?? this.nextId('Mode'),
       modes,
-      ...(brandId === undefined ? {} : { brandId }),
+      ...(options.brandId === undefined ? {} : { brandId: options.brandId }),
+      ...(options.theme === undefined ? {} : { theme: options.theme }),
     }
 
     this.collections.push(collection)
@@ -103,9 +104,12 @@ export class FakeFigmaStore {
 
   private applyCollection(write: CollectionWrite): void {
     const existing = write.collectionId === undefined ? undefined : this.collections.find((candidate) => candidate.id === write.collectionId)
-    const collection = existing ?? this.addCollection(write.name, write.brandId)
+    const collection = existing ?? this.addCollection(write.name)
     collection.name = write.name
     collection.brandId = write.brandId
+    // Figma keeps the theme in shared plugin data; the fake mirrors it on the snapshot.
+    if (write.theme === undefined) delete collection.theme
+    else collection.theme = write.theme
 
     if (write.defaultModeName !== undefined) {
       const defaultMode = collection.modes.find((mode) => mode.id === collection.defaultModeId)
@@ -128,7 +132,7 @@ export class FakeFigmaStore {
 
       if (entry.value.kind === 'alias') {
         if (!aliasesOnly) continue
-        const target = this.variableIdFor(entry.value.brandId, entry.value.name)
+        const target = this.aliasTargetFor(entry.value)
         if (target === undefined) throw new Error(`The alias on "${write.name}" points at missing "${entry.value.name}".`)
         variable.valuesByMode[modeId] = figmaValue(entry.value, target)
         continue
@@ -152,13 +156,13 @@ export class FakeFigmaStore {
     if (write.recreate === true && current !== undefined) this.variables.splice(this.variables.indexOf(current), 1)
     if (write.recreate !== true && current !== undefined) return current
 
-    const collection = this.collectionForBrand(write.brandId) ?? this.addCollection(write.brandId, write.brandId)
-    const known = this.variables.find((candidate) => candidate.collectionId === collection.id && candidate.name === write.name)
-    return known ?? this.addVariable(write.name, collection.id, write.resolvedType)
+    const collection = this.collectionFor(write.brandId, write.theme)
+    const known = this.variables.find((candidate) => candidate.collectionId === collection?.id && candidate.name === write.name)
+    return known ?? (collection === undefined ? undefined : this.addVariable(write.name, collection.id, write.resolvedType))
   }
 
-  private collectionForBrand(brandId: string): FigmaCollectionSnapshot | undefined {
-    return this.collections.find((collection) => collection.brandId === brandId)
+  private collectionFor(brandId: string, theme: string | undefined): FigmaCollectionSnapshot | undefined {
+    return this.collections.find((collection) => collection.brandId === brandId && (collection.theme ?? '') === (theme ?? ''))
   }
 
   private modeId(collectionId: string, modeName: string): string | undefined {
@@ -166,9 +170,21 @@ export class FakeFigmaStore {
     return collection?.modes.find((mode) => mode.name === modeName)?.id
   }
 
-  private variableIdFor(brandId: string, name: string): string | undefined {
-    const collection = this.collectionForBrand(brandId)
-    return this.variables.find((variable) => variable.collectionId === collection?.id && variable.name === name)?.id
+  /** Mirrors `aliasTarget` in `code.ts`, including the per-theme fallback. */
+  private aliasTargetFor(target: { brandId: string; theme: string; name: string }): string | undefined {
+    const inCollection = (collection: FigmaCollectionSnapshot | undefined): string | undefined =>
+      this.variables.find((variable) => variable.collectionId === collection?.id && variable.name === target.name)?.id
+
+    const exact = inCollection(this.collectionFor(target.brandId, target.theme))
+    if (exact !== undefined) return exact
+
+    for (const collection of this.collections) {
+      if (collection.brandId !== target.brandId) continue
+      const found = inCollection(collection)
+      if (found !== undefined) return found
+    }
+
+    return undefined
   }
 
   private nextId(prefix: string): string {

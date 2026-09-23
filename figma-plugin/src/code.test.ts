@@ -7,6 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import shippedTokens from '../../public/tokens.json'
+import { BRAND_NAMESPACE, SHARED_NAMESPACE_PATTERN } from './lib/plugin-data.js'
 import type { PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 
 interface FakeMode {
@@ -20,16 +21,20 @@ class FakeCollection {
   modes: FakeMode[]
   defaultModeId: string
   private readonly shared = new Map<string, string>()
+  /** Mirrors a Figma plan that refuses more than N modes per collection. */
+  private readonly modeLimit?: number
 
-  constructor(id: string, name: string) {
+  constructor(id: string, name: string, modeLimit?: number) {
     this.id = id
     this.name = name
+    this.modeLimit = modeLimit
     const modeId = `${id}:mode`
     this.modes = [{ modeId, name: 'Mode 1' }]
     this.defaultModeId = modeId
   }
 
   addMode(name: string): string {
+    if (this.modeLimit !== undefined && this.modes.length >= this.modeLimit) throw new Error(`Limited to ${this.modeLimit} modes only`)
     const modeId = `${this.id}:mode:${this.modes.length}`
     this.modes.push({ modeId, name })
     return modeId
@@ -46,6 +51,9 @@ class FakeCollection {
   }
 
   setSharedPluginData(namespace: string, key: string, value: string): void {
+    // Figma rejects a namespace with anything but alphanumerics, `_` and `.`, so the
+    // fake does too — otherwise an invalid namespace would only fail inside Figma.
+    if (!SHARED_NAMESPACE_PATTERN.test(namespace)) throw new Error(`Invalid shared plugin data namespace: ${namespace}`)
     this.shared.set(`${namespace}/${key}`, value)
   }
 
@@ -85,7 +93,7 @@ class FakeVariable {
   }
 }
 
-const createFigmaStub = () => {
+const createFigmaStub = (options: { modeLimit?: number } = {}) => {
   const collections: FakeCollection[] = []
   const variables: FakeVariable[] = []
   const messages: PluginToUi[] = []
@@ -112,7 +120,7 @@ const createFigmaStub = () => {
       getVariableByIdAsync: (id: string) => Promise.resolve(variables.find((variable) => variable.id === id && !variable.removed) ?? null),
       createVariableCollection: (name: string) => {
         counter += 1
-        const collection = new FakeCollection(`VariableCollectionId:${counter}`, name)
+        const collection = new FakeCollection(`VariableCollectionId:${counter}`, name, options.modeLimit)
         collections.push(collection)
         return collection
       },
@@ -150,8 +158,8 @@ let store: ReturnType<typeof createFigmaStub>
 const WAIT = { timeout: 2000, interval: 5 }
 
 /** Loads `code.ts` fresh, with `figma` and `__html__` stubbed the way Figma provides them. */
-const loadPlugin = async () => {
-  store = createFigmaStub()
+const loadPlugin = async (options: { modeLimit?: number } = {}) => {
+  store = createFigmaStub(options)
   const globals = globalThis as unknown as Record<string, unknown>
   globals.figma = store.api
   globals.__html__ = '<html><body></body></html>'
@@ -171,13 +179,19 @@ const send = async (message: UiToPlugin, matches: (reply: PluginToUi) => boolean
   return store.messages.find(matches)
 }
 
-const syncOptions: SyncOptions = { prune: false, codeSyntax: true }
+const syncOptions: SyncOptions = { layout: 'modes', prune: false, codeSyntax: true }
 
 beforeEach(() => {
   vi.resetModules()
 })
 
 describe('code.ts', () => {
+  it('keeps the brand id in a namespace Figma accepts', () => {
+    // Figma throws "The namespace can only consist of alphanumeric characters, _ or ."
+    // for anything else, so a hyphen here would break every sync at runtime.
+    expect(BRAND_NAMESPACE).toMatch(SHARED_NAMESPACE_PATTERN)
+  })
+
   it('reports the file contents when the panel opens', async () => {
     await loadPlugin()
 
@@ -198,7 +212,7 @@ describe('code.ts', () => {
 
     const collection = store.collectionNamed('northstar')
     expect(collection?.modes.map((mode) => mode.name)).toEqual(['light', 'dark'])
-    expect(collection?.getSharedPluginData('org.my-first-tokens', 'brandId')).toBe('northstar')
+    expect(collection?.getSharedPluginData(BRAND_NAMESPACE, 'brandId')).toBe('northstar')
 
     const light = collection?.modes[0]?.modeId ?? ''
     const white = store.variableIn('northstar', 'primitives/color/white')
@@ -255,6 +269,49 @@ describe('code.ts', () => {
     await vi.waitFor(() => {
       expect(store.storage.get('token-sync-settings')).toMatchObject({ github: { token: 'secret' }, rememberToken: true })
     }, WAIT)
+  })
+
+  it('keeps going when Figma refuses an extra mode', async () => {
+    await loadPlugin({ modeLimit: 1 })
+    const reply = await send({ type: 'apply-sync', json: shippedTokens, options: syncOptions }, (message) => message.type === 'sync-applied')
+    if (reply?.type !== 'sync-applied') throw new Error('expected sync-applied')
+
+    // The limit is reported with a way out instead of failing the whole sync.
+    expect(reply.report.warnings.join(' ')).toContain('Limited to 1 modes only')
+    expect(reply.report.warnings.join(' ')).toContain('One collection per brand and theme')
+
+    const collection = store.collectionNamed('northstar')
+    expect(collection?.modes.map((mode) => mode.name)).toEqual(['light'])
+    expect(Object.keys(store.variableIn('northstar', 'primitives/color/white')?.valuesByMode ?? {})).toHaveLength(1)
+  })
+
+  it('lays the tokens out as one collection per brand and theme when asked', async () => {
+    await loadPlugin()
+    const reply = await send(
+      { type: 'apply-sync', json: shippedTokens, options: { ...syncOptions, layout: 'collections' } },
+      (message) => message.type === 'sync-applied',
+    )
+    if (reply?.type !== 'sync-applied') throw new Error('expected sync-applied')
+
+    expect(reply.report.layout).toBe('collections')
+    const collection = store.collectionNamed('northstar/light')
+    expect(collection?.modes.map((mode) => mode.name)).toEqual(['light'])
+    expect(collection?.getSharedPluginData(BRAND_NAMESPACE, 'brandId')).toBe('northstar')
+    expect(collection?.getSharedPluginData(BRAND_NAMESPACE, 'theme')).toBe('light')
+    expect(store.variableIn('northstar/light', 'semantic/surface-page-default')).toBeDefined()
+  })
+
+  it('follows the layout a file already uses when the choice is automatic', async () => {
+    await loadPlugin()
+    // A file with `brand/theme` collections switches itself to that layout.
+    store.api.variables.createVariableCollection('northstar/light')
+
+    const reply = await send(
+      { type: 'plan-sync', json: shippedTokens, options: { ...syncOptions, layout: 'auto' } },
+      (message) => message.type === 'sync-preview',
+    )
+
+    expect(reply).toMatchObject({ summary: { layout: 'collections' } })
   })
 
   it('reports a failed push instead of throwing', async () => {

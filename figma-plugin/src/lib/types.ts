@@ -34,6 +34,11 @@ export interface FigmaCollectionSnapshot {
   modes: FigmaModeSnapshot[]
   /** Brand id kept with `setSharedPluginData`, so renames and ids survive. */
   brandId?: string
+  /**
+   * Theme this collection holds when the file uses one collection per theme.
+   * Absent for the default layout, where a collection holds every theme as a mode.
+   */
+  theme?: string
 }
 
 export interface FigmaVariableSnapshot {
@@ -56,6 +61,16 @@ export interface FigmaSnapshot {
 export type TokenKind = 'color' | 'dimension' | 'gradient' | 'string'
 
 /**
+ * How tokens are laid out in the Figma file.
+ *
+ * - `modes`: one collection per brand, one mode per theme. Nicest to design with, but
+ *   some Figma plans limit a collection to a single mode.
+ * - `collections`: one collection per brand *and* theme (`northstar/light`, each with a
+ *   single mode). More collections, but it works on every plan.
+ */
+export type SyncLayout = 'modes' | 'collections'
+
+/**
  * A value the plan wants in Figma. Aliases are stored as coordinates instead of
  * ids because the target variable may not exist yet when the plan is built.
  */
@@ -63,11 +78,13 @@ export type PlannedValue =
   | { kind: 'color'; value: FigmaColor }
   | { kind: 'number'; value: number; unit: string }
   | { kind: 'text'; value: string }
-  | { kind: 'alias'; brandId: string; name: string }
+  | { kind: 'alias'; brandId: string; theme: string; name: string }
 
 export interface CollectionWrite {
   brandId: string
   name: string
+  /** Set in the `collections` layout: the theme this collection holds. */
+  theme?: string
   /** Existing collection to update; omitted when the collection has to be created. */
   collectionId?: string
   /**
@@ -82,6 +99,8 @@ export interface CollectionWrite {
 
 export interface VariableWrite {
   brandId: string
+  /** Set in the `collections` layout: the theme (collection) this variable lives in. */
+  theme?: string
   /** Figma variable name, which is also the token path key (`primitives/color/white`). */
   name: string
   resolvedType: FigmaResolvedType
@@ -99,6 +118,7 @@ export interface VariableWrite {
 }
 
 export interface SyncPlan {
+  layout: SyncLayout
   collections: CollectionWrite[]
   variables: VariableWrite[]
   removals: Array<{ variableId: string; name: string }>
@@ -106,6 +126,7 @@ export interface SyncPlan {
 }
 
 export interface SyncSummary {
+  layout: SyncLayout
   collections: { create: number; update: number }
   modes: { add: number; remove: number; rename: number }
   variables: { create: number; update: number; rename: number; recreate: number; remove: number; values: number }

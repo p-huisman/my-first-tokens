@@ -54,6 +54,26 @@ The panel has two halves — one per direction.
 4. Two optional switches: **code syntax** adds a `var(--…)` value to every variable so Dev Mode shows
    the CSS name, and **prune** also removes variables and modes that the JSON no longer contains. Prune
    is off by default, so a sync never deletes anything unless you ask for it.
+5. **Variable layout** decides how brands and themes are stored — see below. Leave it on _Automatic_
+   unless you are moving an existing file to the other layout.
+
+### Layouts
+
+| Layout                                                   | Collections                            | Modes per collection               | When to use it                                                       |
+| -------------------------------------------------------- | -------------------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| _One collection per brand, one mode per theme_ (default) | `northstar`, `sunset`                  | one per theme (`light`, `dark`)    | design work: a designer switches the mode on a frame                 |
+| _One collection per brand and theme_                     | `northstar/light`, `northstar/dark`, … | exactly one, named after the theme | Figma plans that limit modes, or when you want per-theme collections |
+
+_Automatic_ keeps whichever layout the file already uses (a collection named `brand/theme` or one
+carrying this plugin's theme data means "per theme collections"), so repeated syncs never flip-flop.
+
+Figma refuses extra modes on some plans with _"Limited to N modes only"_. That no longer fails the
+sync: the modes it did allow are written, the rest are reported with the hint to switch to the
+per-theme layout. Because that layout never calls `addMode`, it works on every plan.
+
+Switching layouts leaves the previous collections in place (nothing is deleted without **prune**), so
+a file that moves from modes to per-theme collections keeps the old brand collection around until you
+remove it by hand or turn prune on for a sync.
 
 ### Half 2 — bring Figma changes back out
 
@@ -83,18 +103,18 @@ The panel has two halves — one per direction.
 
 ## Mapping
 
-| DTCG                                | Figma                                                                                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `brands.<id>`                       | variable collection, named after the brand (`$name`, else the id)                                                                                             |
-| `themes.<theme>`                    | collection mode (`light`, `dark`, …)                                                                                                                          |
-| `primitives.color.gray50`           | variable `primitives/color/gray50`                                                                                                                            |
-| `semantic.surface-page-default`     | variable `semantic/surface-page-default`                                                                                                                      |
-| colour value                        | `COLOR` variable, `{ r, g, b, a }` in 0-1                                                                                                                     |
-| `dimension` value (`8px`)           | `FLOAT` variable; the unit is kept in the description (`DTCG value: 8px`)                                                                                     |
-| `$value: "{brands.<id>.<theme>.…}"` | variable alias (`VARIABLE_ALIAS`) for every mode                                                                                                              |
-| `$extensions["com.figma"]`          | written on export (`variableId`, `collectionId`, `modeId`, `resolvedType`, `scopes`) and reused on import, so re-syncs update in place instead of duplicating |
-| code syntax                         | `WEB` = `var(--<css variable>)`, matching the editor's `buildCssVariables` output                                                                             |
-| brand id                            | `setSharedPluginData('org.my-first-tokens', 'brandId', …)`, which survives renaming a collection in Figma                                                     |
+| DTCG                                | Figma                                                                                                                                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `brands.<id>`                       | variable collection, named after the brand (`$name`, else the id)                                                                                                                                                              |
+| `themes.<theme>`                    | a mode in that collection, or its own collection named `<brand>/<theme>` in the per-theme layout                                                                                                                               |
+| `primitives.color.gray50`           | variable `primitives/color/gray50`                                                                                                                                                                                             |
+| `semantic.surface-page-default`     | variable `semantic/surface-page-default`                                                                                                                                                                                       |
+| colour value                        | `COLOR` variable, `{ r, g, b, a }` in 0-1                                                                                                                                                                                      |
+| `dimension` value (`8px`)           | `FLOAT` variable; the unit is kept in the description (`DTCG value: 8px`)                                                                                                                                                      |
+| `$value: "{brands.<id>.<theme>.…}"` | variable alias (`VARIABLE_ALIAS`) for every mode                                                                                                                                                                               |
+| `$extensions["com.figma"]`          | written on export (`variableId`, `collectionId`, `modeId`, `resolvedType`, `scopes`) and reused on import, so re-syncs update in place instead of duplicating                                                                  |
+| code syntax                         | `WEB` = `var(--<css variable>)`, matching the editor's `buildCssVariables` output                                                                                                                                              |
+| brand id and theme                  | shared plugin data on `org.tokensync` (keys `brandId` and `theme`), which survives renaming a collection in Figma and a plugin id change. Figma allows only alphanumerics, `_` and `.` in a namespace, so there are no hyphens |
 
 A sync is idempotent: the second run plans zero writes, values are only written when they
 actually differ, and a variable whose resolved type changed is reported and recreated
@@ -106,8 +126,9 @@ actually differ, and a variable whose resolved type changed is reported and recr
   and read back from a `STRING` variable holding the editor's gradient JSON when exporting.
 - **`rem`/`em`/`%` units** become unitless `FLOAT` values; the unit is preserved in the
   variable description and reported as a note.
-- **Modes are plan-dependent** in Figma: `collection.addMode` throws on tiers that limit a
-  collection to one mode. Brands with several themes need a plan that supports them.
+- **Modes are plan-dependent** in Figma. A refused `addMode` is reported as a note and the sync carries
+  on with the accepted modes; choose the _one collection per brand and theme_ layout to sync every
+  theme on a plan that limits modes.
 - **Boolean / easing / timing variables** are skipped during export (no DTCG type in this
   model) and counted in the panel's "skipped" total.
 - **Flat legacy primitives** (`primitives/white`, as older Figma exports produced) are read
@@ -127,6 +148,7 @@ src/messages.ts                the typed UI ⇄ main-thread protocol
 src/lib/dtcg-figma.ts          the two sync directions (pure)
 src/lib/token-path.ts          variable names ⇄ token paths (incl. legacy flat primitives)
 src/lib/github.ts              Contents API requests, commit + retry, tokens URL loading
+src/lib/plugin-data.ts         shared plugin data keys (brand id, theme) and Figma's namespace rules
 src/lib/types.ts               snapshot and plan types
 src/lib/fake-figma.ts          in-memory document used by the tests
 ```

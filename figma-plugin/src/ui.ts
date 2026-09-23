@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import type { TemplateResult } from 'lit'
 import { DEFAULT_GITHUB_SETTINGS, fetchTokensFromUrl } from './lib/github.js'
 import type { GitHubSettings } from './lib/github.js'
-import type { SyncReport, SyncSummary } from './lib/types.js'
+import type { SyncReport, SyncLayout, SyncSummary } from './lib/types.js'
 import type { ExportStats, PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
@@ -24,6 +24,7 @@ export class TokenSyncPluginApp extends LitElement {
     sourceLabel: { type: String },
     loaded: { type: Object },
     pasteValue: { type: String },
+    layout: { type: String },
     prune: { type: Boolean },
     codeSyntax: { type: Boolean },
     busy: { type: String },
@@ -46,6 +47,8 @@ export class TokenSyncPluginApp extends LitElement {
   /** The loaded DTCG file, validated by `fromDesignTokensFormat` inside the planner. */
   declare loaded: unknown
   declare pasteValue: string
+  /** `auto` follows the layout the file already uses. */
+  declare layout: SyncLayout | 'auto'
   declare prune: boolean
   declare codeSyntax: boolean
   /** Non-empty while an operation is running: shown on the status line. */
@@ -69,6 +72,7 @@ export class TokenSyncPluginApp extends LitElement {
     this.sourceLabel = ''
     this.loaded = undefined
     this.pasteValue = ''
+    this.layout = 'auto'
     this.prune = false
     this.codeSyntax = true
     this.busy = ''
@@ -143,7 +147,7 @@ export class TokenSyncPluginApp extends LitElement {
   }
 
   private get _options(): SyncOptions {
-    return { prune: this.prune, codeSyntax: this.codeSyntax }
+    return { layout: this.layout, prune: this.prune, codeSyntax: this.codeSyntax }
   }
 
   private _accept(json: unknown, label: string) {
@@ -300,9 +304,12 @@ export class TokenSyncPluginApp extends LitElement {
   }
 
   private _renderDiff(title: string, summary: SyncSummary): TemplateResult {
+    const layout = summary.layout === 'collections' ? 'one collection per brand and theme' : 'one collection per brand, one mode per theme'
+
     return html`
       <div class="report" role="status">
         <p class="report-title">${title}</p>
+        <p class="muted">Layout: ${layout}</p>
         <ul>
           ${this._summaryLines(summary).map((line) => html`<li>${line}</li>`)}
         </ul>
@@ -368,6 +375,23 @@ export class TokenSyncPluginApp extends LitElement {
 
         <fieldset>
           <legend>Options</legend>
+          <label class="stacked">
+            Variable layout
+            <select
+              name="layout"
+              @change=${(event: Event) => {
+                this.layout = (event.target as HTMLSelectElement).value as SyncLayout | 'auto'
+              }}
+            >
+              <option value="auto" ?selected=${this.layout === 'auto'}>Automatic — keep what this file already uses</option>
+              <option value="modes" ?selected=${this.layout === 'modes'}>One collection per brand, one mode per theme</option>
+              <option value="collections" ?selected=${this.layout === 'collections'}>One collection per brand and theme</option>
+            </select>
+          </label>
+          <p class="muted">
+            Figma limits how many modes a collection may have on some plans. If a sync says a mode was refused, pick
+            <em>one collection per brand and theme</em> to get every theme.
+          </p>
           <label class="check">
             <input type="checkbox" .checked=${this.codeSyntax} @change=${(event: Event) => (this.codeSyntax = (event.target as HTMLInputElement).checked)} />
             Write <code>var(--…)</code> code syntax for Dev Mode
@@ -572,6 +596,12 @@ export class TokenSyncPluginApp extends LitElement {
     }
 
     label.stacked input {
+      display: block;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    label.stacked select {
       display: block;
       width: 100%;
       margin-top: 4px;

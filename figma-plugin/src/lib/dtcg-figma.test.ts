@@ -55,9 +55,15 @@ describe('planDtcgToFigma', () => {
     expect(named('northstar', 'semantic/surface-page-default')?.values[0]?.value).toEqual({
       kind: 'alias',
       brandId: 'northstar',
+      theme: 'light',
       name: 'primitives/color/gray50',
     })
-    expect(named('northstar', 'component/cardBg')?.values[0]?.value).toEqual({ kind: 'alias', brandId: 'northstar', name: 'semantic/surface-panel-elevated' })
+    expect(named('northstar', 'component/cardBg')?.values[0]?.value).toEqual({
+      kind: 'alias',
+      brandId: 'northstar',
+      theme: 'light',
+      name: 'semantic/surface-panel-elevated',
+    })
   })
 
   it('keeps the unit of a dimension in the description, because FLOAT is unitless', () => {
@@ -108,8 +114,67 @@ describe('planDtcgToFigma', () => {
     expect(plan.variables.find((variable) => variable.name === 'semantic/action-brand-primary')?.values[0]?.value).toEqual({
       kind: 'alias',
       brandId: 'a',
+      theme: 'light',
       name: 'primitives/color/base',
     })
+  })
+})
+
+describe('the collections layout', () => {
+  it('plans one single-mode collection per brand and theme', () => {
+    const plan = planDtcgToFigma(shippedTokens, EMPTY, { layout: 'collections' })
+
+    expect(plan.layout).toBe('collections')
+    expect(plan.collections).toMatchObject([
+      { brandId: 'northstar', theme: 'light', name: 'northstar/light', defaultModeName: 'light', addModes: [] },
+      { brandId: 'northstar', theme: 'dark', name: 'northstar/dark', defaultModeName: 'dark', addModes: [] },
+      { brandId: 'sunset', theme: 'light', name: 'sunset/light', defaultModeName: 'light', addModes: [] },
+      { brandId: 'sunset', theme: 'dark', name: 'sunset/dark', defaultModeName: 'dark', addModes: [] },
+    ])
+    // Nothing needs an extra mode, which is what makes this layout work on every plan.
+    expect(summarizePlan(plan).modes).toEqual({ add: 0, remove: 0, rename: 4 })
+
+    const white = plan.variables.filter((variable) => variable.brandId === 'northstar' && variable.name === 'primitives/color/white')
+    expect(white).toHaveLength(2)
+    expect(white[0]).toMatchObject({ theme: 'light', values: [{ mode: 'light', value: { kind: 'color', value: { r: 1, g: 1, b: 1, a: 1 } } }] })
+    expect(white[1]).toMatchObject({ theme: 'dark', values: [{ mode: 'dark' }] })
+  })
+
+  it('round-trips the shipped token file through Figma and back', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens, { layout: 'collections' })
+
+    const exported = figmaToDtcg(store.snapshot(), { generatedAt: '2026-09-22T18:28:04.007Z' })
+
+    expect(store.collectionsNamed('northstar/light')).toHaveLength(1)
+    expect(exported.warnings).toEqual([])
+    expect(exported.stats).toMatchObject({ brands: 2, modes: 4, skipped: 0 })
+    // The per-theme collections are merged back into one brand with one theme each.
+    expect(fromDesignTokensFormat(exported.file)?.brands).toEqual(fromDesignTokensFormat(shippedTokens)?.brands)
+  })
+
+  it('is idempotent: a second sync has nothing left to do', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens, { layout: 'collections' })
+
+    const plan = planDtcgToFigma(shippedTokens, store.snapshot(), { layout: 'collections' })
+
+    expect(plan.variables).toEqual([])
+    expect(plan.collections.every((collection) => collection.collectionId !== undefined)).toBe(true)
+    expect(summarizePlan(plan).variables).toEqual({ create: 0, update: 0, rename: 0, recreate: 0, remove: 0, values: 0 })
+  })
+
+  it('points aliases at the collection of the same theme', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens, { layout: 'collections' })
+
+    const light = store.variablesNamed('semantic/surface-page-default')[0]
+    const gray = store.variablesNamed('primitives/color/gray50')[0]
+    const dark = store.variablesNamed('primitives/color/gray50')[1]
+    const lightMode = store.collectionsNamed('northstar/light')[0]?.modes[0]?.id ?? ''
+
+    expect(light?.valuesByMode[lightMode]).toEqual({ type: 'alias', id: gray?.id })
+    expect(gray?.id).not.toBe(dark?.id)
   })
 })
 
@@ -175,7 +240,7 @@ describe('figmaToDtcg', () => {
 
   it('folds a flat legacy primitive into the colour group the editor can read', () => {
     const store = new FakeFigmaStore()
-    const collection = store.addCollection('Northstar', 'northstar', ['light'])
+    const collection = store.addCollection('Northstar', { brandId: 'northstar', modes: ['light'] })
     const variable = store.addVariable('primitives/white', collection.id, 'COLOR')
     store.setValue(variable.id, 'light', { type: 'raw', value: { r: 1, g: 1, b: 1, a: 1 } })
 
@@ -187,7 +252,7 @@ describe('figmaToDtcg', () => {
 
   it('reports variables it cannot represent instead of dropping them silently', () => {
     const store = new FakeFigmaStore()
-    const collection = store.addCollection('Northstar', 'northstar', ['light'])
+    const collection = store.addCollection('Northstar', { brandId: 'northstar', modes: ['light'] })
     const flag = store.addVariable('semantic/flag', collection.id, 'BOOLEAN')
     store.setValue(flag.id, 'light', { type: 'raw', value: true })
 

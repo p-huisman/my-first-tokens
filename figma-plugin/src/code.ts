@@ -6,16 +6,14 @@
  * the UI (plus GitHub, because network requests belong on this side of the plugin).
  */
 
-import { aliasKey, figmaToDtcg, planDtcgToFigma, summarizePlan } from './lib/dtcg-figma.js'
+import { figmaToDtcg, planDtcgToFigma, summarizePlan } from './lib/dtcg-figma.js'
 import { DEFAULT_GITHUB_SETTINGS, DEFAULT_TOKENS_URL, commitTokensFile } from './lib/github.js'
 import type { FetchLike } from './lib/github.js'
-import type { FigmaColor, FigmaSnapshot, FigmaValue, SyncPlan, SyncReport } from './lib/types.js'
+import { BRAND_KEY, BRAND_NAMESPACE, THEME_KEY } from './lib/plugin-data.js'
+import type { FigmaColor, FigmaSnapshot, FigmaValue, SyncLayout, SyncPlan, SyncReport } from './lib/types.js'
 import type { PluginSettings, PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 
 const SETTINGS_KEY = 'token-sync-settings'
-/** Shared plugin data survives a plugin id change, unlike private plugin data. */
-const BRAND_NAMESPACE = 'org.my-first-tokens'
-const BRAND_KEY = 'brandId'
 
 const defaultSettings = (): PluginSettings => ({ sourceUrl: DEFAULT_TOKENS_URL, github: { ...DEFAULT_GITHUB_SETTINGS }, rememberToken: false })
 
@@ -36,6 +34,7 @@ const toSnapshotValue = (value: VariableValue): FigmaValue => {
 }
 
 const brandIdOf = (collection: VariableCollection): string | undefined => collection.getSharedPluginData(BRAND_NAMESPACE, BRAND_KEY) || undefined
+const themeOf = (collection: VariableCollection): string | undefined => collection.getSharedPluginData(BRAND_NAMESPACE, THEME_KEY) || undefined
 
 /** Everything the mapping needs to know about the current file. */
 const readSnapshot = async (): Promise<FigmaSnapshot> => {
@@ -49,6 +48,7 @@ const readSnapshot = async (): Promise<FigmaSnapshot> => {
       defaultModeId: collection.defaultModeId,
       modes: collection.modes.map((mode) => ({ id: mode.modeId, name: mode.name })),
       brandId: brandIdOf(collection),
+      theme: themeOf(collection),
     })),
     variables: variables.map((variable) => ({
       id: variable.id,
@@ -67,6 +67,7 @@ const plannedFigmaValue = (value: { kind: 'color'; value: FigmaColor } | { kind:
   value.value
 
 const emptyReport = (plan: SyncPlan): SyncReport => ({
+  layout: plan.layout,
   dryRun: false,
   collections: { create: 0, update: 0 },
   modes: { add: 0, remove: 0, rename: 0 },
@@ -74,9 +75,17 @@ const emptyReport = (plan: SyncPlan): SyncReport => ({
   warnings: plan.warnings,
 })
 
+/** Figma can refuse a mode when the plan limits how many a collection may have. */
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
+/** Collections are addressed by brand *and* theme: the layouts differ in which exist. */
+const collectionKey = (brandId: string, theme: string | undefined): string => `${brandId}|${theme ?? ''}`
+const variableKey = (brandId: string, theme: string | undefined, name: string): string => `${collectionKey(brandId, theme)}|${name}`
+
 /**
- * Writes a plan into the document. Literal values are set before aliases, because
- * an alias needs the id of a variable that may only exist after this run.
+ * Writes a plan into the document. Literal values are set before aliases, because an
+ * alias needs the id of a variable that may only exist after this run — and a Figma
+ * plan that refuses extra modes is reported instead of aborting the whole sync.
  */
 const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
   const report = emptyReport(plan)
@@ -84,33 +93,48 @@ const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
   const live = new Map<string, Variable>()
 
   for (const write of plan.collections) {
-    const existing = write.collectionId === undefined ? undefined : await figma.variables.getVariableCollectionByIdAsync(write.collectionId)
+    const existing = write.collectionId === undefined ? null : await figma.variables.getVariableCollectionByIdAsync(write.collectionId)
     const collection = existing ?? figma.variables.createVariableCollection(write.name)
-    if (existing === undefined) report.collections.create += 1
+    if (existing === null) report.collections.create += 1
     else report.collections.update += 1
 
     collection.name = write.name
     collection.setSharedPluginData(BRAND_NAMESPACE, BRAND_KEY, write.brandId)
+    collection.setSharedPluginData(BRAND_NAMESPACE, THEME_KEY, write.theme ?? '')
+
     if (write.defaultModeName !== undefined) {
       collection.renameMode(collection.defaultModeId, write.defaultModeName)
       report.modes.rename += 1
     }
+
     for (const mode of write.addModes) {
-      collection.addMode(mode.name)
-      report.modes.add += 1
-    }
-    for (const mode of write.removeModes) {
-      collection.removeMode(mode.modeId)
-      report.modes.remove += 1
+      try {
+        collection.addMode(mode.name)
+        report.modes.add += 1
+      } catch (error) {
+        report.warnings.push(
+          `Figma refused a "${mode.name}" mode in "${write.name}": ${messageOf(error)}. The other themes were written — pick the "One collection per brand and theme" layout to get every theme on a plan that limits modes.`,
+        )
+      }
     }
 
-    collections.set(write.brandId, collection)
+    for (const mode of write.removeModes) {
+      try {
+        collection.removeMode(mode.modeId)
+        report.modes.remove += 1
+      } catch {
+        // The mode is already gone; nothing to report.
+      }
+    }
+
+    collections.set(collectionKey(write.brandId, write.theme), collection)
   }
 
-  const modeIdFor = (brandId: string, modeName: string): string | undefined => collections.get(brandId)?.modes.find((mode) => mode.name === modeName)?.modeId
+  const modeIdFor = (brandId: string, theme: string | undefined, modeName: string): string | undefined =>
+    collections.get(collectionKey(brandId, theme))?.modes.find((mode) => mode.name === modeName)?.modeId
 
   for (const write of plan.variables) {
-    const collection = collections.get(write.brandId)
+    const collection = collections.get(collectionKey(write.brandId, write.theme))
     if (collection === undefined) continue
 
     const existing = write.variableId === undefined ? null : await figma.variables.getVariableByIdAsync(write.variableId)
@@ -135,25 +159,39 @@ const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
     if (write.scopes !== undefined) variable.scopes = write.scopes as VariableScope[]
     if (write.codeSyntax?.WEB !== undefined) variable.setVariableCodeSyntax('WEB', write.codeSyntax.WEB)
 
-    live.set(aliasKey(write.brandId, write.name), variable)
+    live.set(variableKey(write.brandId, write.theme, write.name), variable)
 
     for (const entry of write.values) {
       if (entry.value.kind === 'alias') continue
-      const modeId = modeIdFor(write.brandId, entry.mode)
+      const modeId = modeIdFor(write.brandId, write.theme, entry.mode)
       if (modeId === undefined) continue
       variable.setValueForMode(modeId, plannedFigmaValue(entry.value))
       report.variables.values += 1
     }
   }
 
+  /** In the `collections` layout the target variable lives in its own theme collection. */
+  const aliasTarget = (target: { brandId: string; theme: string; name: string }): Variable | undefined => {
+    if (plan.layout !== 'collections') return live.get(variableKey(target.brandId, undefined, target.name))
+
+    const exact = live.get(variableKey(target.brandId, target.theme, target.name))
+    if (exact !== undefined) return exact
+
+    for (const [key, candidate] of live) {
+      if (key.startsWith(`${target.brandId}|`) && key.endsWith(`|${target.name}`)) return candidate
+    }
+
+    return undefined
+  }
+
   for (const write of plan.variables) {
-    const variable = live.get(aliasKey(write.brandId, write.name))
+    const variable = live.get(variableKey(write.brandId, write.theme, write.name))
     if (variable === undefined) continue
 
     for (const entry of write.values) {
       if (entry.value.kind !== 'alias') continue
-      const modeId = modeIdFor(write.brandId, entry.mode)
-      const target = live.get(aliasKey(entry.value.brandId, entry.value.name))
+      const modeId = modeIdFor(write.brandId, write.theme, entry.mode)
+      const target = aliasTarget(entry.value)
       if (modeId === undefined || target === undefined) continue
       variable.setValueForMode(modeId, { type: 'VARIABLE_ALIAS', id: target.id })
       report.variables.values += 1
@@ -169,7 +207,19 @@ const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
   return report
 }
 
-const syncOptions = (options: SyncOptions) => ({ prune: options.prune, codeSyntax: options.codeSyntax })
+/** `auto` follows what the file already looks like, so a sync never flip-flops layouts. */
+const resolveLayout = (requested: SyncOptions['layout'], snapshot: FigmaSnapshot): SyncLayout => {
+  if (requested !== 'auto') return requested
+
+  const perTheme = snapshot.collections.some((collection) => collection.theme !== undefined || collection.name.includes('/'))
+  return perTheme ? 'collections' : 'modes'
+}
+
+const syncOptions = (options: SyncOptions, snapshot: FigmaSnapshot) => ({
+  layout: resolveLayout(options.layout, snapshot),
+  prune: options.prune,
+  codeSyntax: options.codeSyntax,
+})
 
 const loadSettings = async (): Promise<PluginSettings> => {
   const stored: unknown = await figma.clientStorage.getAsync(SETTINGS_KEY)
@@ -179,13 +229,15 @@ const loadSettings = async (): Promise<PluginSettings> => {
 const handleMessage = async (message: UiToPlugin): Promise<void> => {
   switch (message.type) {
     case 'plan-sync': {
-      const plan = planDtcgToFigma(message.json, await readSnapshot(), syncOptions(message.options))
+      const snapshot = await readSnapshot()
+      const plan = planDtcgToFigma(message.json, snapshot, syncOptions(message.options, snapshot))
       post({ type: 'sync-preview', summary: summarizePlan(plan) })
       return
     }
 
     case 'apply-sync': {
-      const plan = planDtcgToFigma(message.json, await readSnapshot(), syncOptions(message.options))
+      const snapshot = await readSnapshot()
+      const plan = planDtcgToFigma(message.json, snapshot, syncOptions(message.options, snapshot))
       const report = await applyPlan(plan)
       figma.commitUndo()
       figma.notify(`Synced ${report.variables.create + report.variables.update} variables to Figma`)
