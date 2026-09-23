@@ -11,6 +11,7 @@ export class PrimitiveGradientDialog extends LitElement {
     startColor: { type: String },
     endColor: { type: String },
     angle: { type: String },
+    initial: { type: Object },
   }
 
   declare open: boolean
@@ -19,6 +20,7 @@ export class PrimitiveGradientDialog extends LitElement {
   declare startColor: string
   declare endColor: string
   declare angle: string
+  declare initial: { key: string; value: { stops: GradientStop[]; extensions?: Record<string, unknown> } } | null
 
   constructor() {
     super()
@@ -28,6 +30,7 @@ export class PrimitiveGradientDialog extends LitElement {
     this.startColor = ''
     this.endColor = ''
     this.angle = '45deg'
+    this.initial = null
   }
 
   updated(changedProperties: PropertyValues<this>) {
@@ -38,7 +41,12 @@ export class PrimitiveGradientDialog extends LitElement {
       this.tokenName = ''
       this.startColor = ''
       this.endColor = ''
-      this.angle = '45deg'
+      const initial = this.initial
+      this.tokenName = initial?.key ?? ''
+      this.startColor = initial?.value.stops[0]?.color ?? ''
+      this.endColor = initial?.value.stops[initial.value.stops.length - 1]?.color ?? ''
+      const motion = initial?.value.extensions?.['org.designsystem.motion']
+      this.angle = motion && typeof motion === 'object' && 'angle' in motion ? String(motion.angle) : '45deg'
       dialog.showModal()
       requestAnimationFrame(() => this.renderRoot.querySelector<HTMLInputElement>('#gradient-name')?.focus())
     } else if (!this.open && dialog?.open) dialog.close()
@@ -65,6 +73,7 @@ export class PrimitiveGradientDialog extends LitElement {
     ]
     const detail: GradientSaveDetail = {
       tokenName: this.tokenName.trim(),
+      originalTokenName: this.initial?.key,
       stops,
       extensions: {
         'org.designsystem.motion': {
@@ -82,7 +91,7 @@ export class PrimitiveGradientDialog extends LitElement {
       <dialog @cancel=${(event: Event) => { event.preventDefault(); this._close() }}>
         <form @submit=${this._submit}>
           <header>
-            <div><p class="eyebrow">Primitive gradient</p><h2>Add gradient</h2></div>
+            <div><p class="eyebrow">Primitive gradient</p><h2>${this.initial ? 'Edit gradient' : 'Add gradient'}</h2></div>
             <button class="close-button" type="button" aria-label="Close dialog" @click=${this._close}>×</button>
           </header>
           <label>Token name<input id="gradient-name" required type="text" placeholder="brand-sunset" .value=${this.tokenName} @input=${(event: Event) => { this.tokenName = (event.target as HTMLInputElement).value; this.error = '' }} /></label>
@@ -90,7 +99,7 @@ export class PrimitiveGradientDialog extends LitElement {
           <tkn-color-input label="End color" required .value=${this.endColor} @value-change=${(event: CustomEvent<{ value: string }>) => { this.endColor = event.detail.value; this.error = '' }}></tkn-color-input>
           <label>Angle<input required type="text" .value=${this.angle} @input=${(event: Event) => { this.angle = (event.target as HTMLInputElement).value }} /></label>
           ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ''}
-          <footer><button class="secondary" type="button" @click=${this._close}>Cancel</button><button class="primary" type="submit">Add gradient</button></footer>
+          <footer><button class="secondary" type="button" @click=${this._close}>Cancel</button><button class="primary" type="submit">${this.initial ? 'Save gradient' : 'Add gradient'}</button></footer>
         </form>
       </dialog>
     `

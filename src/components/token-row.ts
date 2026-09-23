@@ -90,6 +90,14 @@ export class TknTokenRow extends LitElement {
     if (details !== null && details !== undefined) details.open = false
   }
 
+  private _editGradient(value: unknown) {
+    this.dispatchEvent(new CustomEvent('gradient-edit', {
+      detail: { key: this.tokenKey, value },
+      bubbles: true,
+      composed: true,
+    }))
+  }
+
   render() {
     const value = this.section === 'primitives' ? this.theme.primitives?.[this.primitiveGroup]?.[this.tokenKey] : this.theme?.[this.section]?.[this.tokenKey]
     const resolution = resolveToken(value, this.theme)
@@ -111,9 +119,10 @@ export class TknTokenRow extends LitElement {
         ${
           this.section === 'primitives' && this.primitiveGroup === 'gradient'
             ? html`
-                <div class="gradient-preview" style=${this._gradientStyle(value)}>
+                <button class="gradient-preview" type="button" style=${this._gradientStyle(value)} @click=${() => this._editGradient(value)}>
                   <span>Gradient</span>
-                </div>
+                  <span class="gradient-edit-label">Edit</span>
+                </button>
               `
             : this.section === 'primitives' && this.primitiveGroup === 'color'
             ? html`
@@ -216,8 +225,10 @@ export class TknTokenRow extends LitElement {
     }
 
     .gradient-preview {
+      width: 100%;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       min-height: 42px;
       padding: 0 12px;
       border: 1px solid rgba(15, 23, 42, 0.2);
@@ -226,7 +237,10 @@ export class TknTokenRow extends LitElement {
       font-size: 12px;
       font-weight: 600;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+      cursor: pointer;
     }
+
+    .gradient-edit-label { font-size: 11px; opacity: .85; }
 
     .token-issue {
       color: #f59e0b;

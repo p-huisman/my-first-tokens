@@ -271,6 +271,16 @@ export class TokenSyncApp extends LitElement {
   }
 
   _openGradientDialog() {
+    const dialog = this.renderRoot.querySelector('primitive-gradient-dialog') as (HTMLElement & { initial: unknown }) | null
+    if (dialog) dialog.initial = null
+    this.gradientDialogError = ''
+    this.gradientDialogOpen = true
+  }
+
+  _editGradient(event: CustomEvent<{ key: string; value: unknown }>) {
+    const dialog = this.renderRoot.querySelector('primitive-gradient-dialog') as (HTMLElement & { initial: unknown }) | null
+    if (!dialog) return
+    dialog.initial = { key: event.detail.key, value: event.detail.value }
     this.gradientDialogError = ''
     this.gradientDialogOpen = true
   }
@@ -285,14 +295,16 @@ export class TokenSyncApp extends LitElement {
     const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
     if (!themes.length) return
 
-    const { tokenName, stops, extensions } = event.detail
-    if (themes.some((theme) => Object.hasOwn(theme.primitives.gradient ?? {}, tokenName))) {
+    const { tokenName, originalTokenName, stops, extensions } = event.detail
+    const duplicate = themes.some((theme) => Object.hasOwn(theme.primitives.gradient ?? {}, tokenName) && tokenName !== originalTokenName)
+    if (duplicate) {
       this.gradientDialogError = `A primitive named ${tokenName} already exists.`
       return
     }
 
     themes.forEach((theme) => {
       const gradients = theme.primitives.gradient ?? (theme.primitives.gradient = {})
+      if (originalTokenName && originalTokenName !== tokenName) delete gradients[originalTokenName]
       gradients[tokenName] = { stops, extensions }
     })
     this.gradientDialogOpen = false
@@ -455,6 +467,7 @@ export class TokenSyncApp extends LitElement {
                 primitive-group=${this.primitiveFilter}
                 .theme=${theme}
                 @token-change=${this._handleTokenChange}
+                @gradient-edit=${this._editGradient}
               ></tkn-token-row>
             `,
           )}

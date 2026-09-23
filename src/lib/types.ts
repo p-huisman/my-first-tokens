@@ -103,6 +103,7 @@ export interface SpatialSaveDetail {
 
 export interface GradientSaveDetail {
   tokenName: string
+  originalTokenName?: string
   stops: GradientStop[]
   extensions: Record<string, unknown>
 }
