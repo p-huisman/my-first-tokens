@@ -14,13 +14,28 @@ export interface DtcgDimensionValue {
   unit: string
 }
 
+export interface GradientStop {
+  color: string
+  position: number
+}
+
+export interface GradientValue {
+  stops: GradientStop[]
+  extensions?: Record<string, unknown>
+}
+
+export interface DtcgGradientStop {
+  color: string | DtcgColorValue
+  position: number
+}
+
 /**
  * A token value is either a colour string (`#RGB`, `#RRGGBB`, `#RRGGBBAA`,
  * `rgb()`, `rgba()`) or a `{section.key}` reference. Imported DTCG colour
  * objects are converted to a colour string on load, so the in-memory model
  * stays string based.
  */
-export type TokenValue = string | DtcgColorValue | DtcgDimensionValue
+export type TokenValue = string | DtcgColorValue | DtcgDimensionValue | GradientValue
 
 export type ColorTokens = Record<string, TokenValue>
 export type PrimitiveGroup = Record<string, TokenValue>
@@ -29,10 +44,11 @@ export interface PrimitiveTokens {
   color?: ColorTokens
   spatial?: PrimitiveGroup
   structural?: PrimitiveGroup
+  gradient?: Record<string, GradientValue>
   [group: string]: PrimitiveGroup | undefined
 }
 
-export type PrimitiveGroupName = 'color' | 'spatial' | 'structural'
+export type PrimitiveGroupName = 'color' | 'spatial' | 'structural' | 'gradient'
 
 export interface ThemeTokens {
   primitives?: PrimitiveTokens
@@ -58,8 +74,9 @@ export interface ReferenceOption {
 }
 
 export interface DtcgToken {
-  $value: TokenValue
+  $value: TokenValue | DtcgGradientStop[]
   $type: string
+  $extensions?: Record<string, unknown>
 }
 
 export interface DtcgTokenFile {
@@ -82,6 +99,12 @@ export interface ScaleSaveDetail {
 export interface SpatialSaveDetail {
   tokenName: string
   value: string
+}
+
+export interface GradientSaveDetail {
+  tokenName: string
+  stops: GradientStop[]
+  extensions: Record<string, unknown>
 }
 
 export interface TokenChangeDetail {

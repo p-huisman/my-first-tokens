@@ -8,6 +8,15 @@ const MAX_REFERENCE_DEPTH = 32
 const REFERENCE_PATTERN = /^\{(.+)\}$/
 const DIMENSION_PATTERN = /^-?(?:\d+\.?\d*|\.\d+)(px|rem|em|%)$/
 
+const gradientToCss = (value: unknown): string | null => {
+  if (value === null || typeof value !== 'object' || !('stops' in value)) return null
+  const gradient = value as { stops?: Array<{ color?: string; position?: number }>; extensions?: Record<string, unknown> }
+  if (!Array.isArray(gradient.stops) || gradient.stops.length < 2) return null
+  const motion = gradient.extensions?.['org.designsystem.motion']
+  const angle = motion && typeof motion === 'object' && 'angle' in motion ? String(motion.angle) : '90deg'
+  return `linear-gradient(${angle}, ${gradient.stops.map((stop) => `${stop.color ?? FALLBACK_COLOR} ${(stop.position ?? 0) * 100}%`).join(', ')})`
+}
+
 export const toKebab = (value: string): string =>
   value
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -33,6 +42,8 @@ export const resolveToken = (value: unknown, theme: ThemeTokens): TokenResolutio
   const visited = new Set<string>()
 
   for (let depth = 0; depth <= MAX_REFERENCE_DEPTH; depth += 1) {
+    const gradient = gradientToCss(current)
+    if (gradient !== null) return { value: gradient }
     if (typeof current !== 'string') return { value: FALLBACK_COLOR, error: 'invalid' }
 
     const reference = REFERENCE_PATTERN.exec(current.trim())

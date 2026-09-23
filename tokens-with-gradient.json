@@ -1,0 +1,1219 @@
+{
+  "$description": "Exported Tokens",
+  "$metadata": {
+    "generatedAt": "2026-09-23T08:08:27.441Z"
+  },
+  "brands": {
+    "northstar": {
+      "light": {
+        "primitives": {
+          "color": {
+            "white": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  1,
+                  1,
+                  1
+                ],
+                "alpha": 1,
+                "hex": "#ffffff"
+              },
+              "$type": "color"
+            },
+            "brandPrimary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.23921568627450981,
+                  0.13725490196078433,
+                  0.9098039215686274
+                ],
+                "alpha": 1,
+                "hex": "#3d23e8"
+              },
+              "$type": "color"
+            },
+            "brandSecondary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.48627450980392156,
+                  0.22745098039215686,
+                  0.9294117647058824
+                ],
+                "alpha": 1,
+                "hex": "#7c3aed"
+              },
+              "$type": "color"
+            },
+            "gray950": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.06274509803921569,
+                  0.09411764705882353,
+                  0.1568627450980392
+                ],
+                "alpha": 1,
+                "hex": "#101828"
+              },
+              "$type": "color"
+            },
+            "gray700": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.2784313725490196,
+                  0.32941176470588235,
+                  0.403921568627451
+                ],
+                "alpha": 1,
+                "hex": "#475467"
+              },
+              "$type": "color"
+            },
+            "gray500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.4,
+                  0.4392156862745098,
+                  0.5215686274509804
+                ],
+                "alpha": 1,
+                "hex": "#667085"
+              },
+              "$type": "color"
+            },
+            "gray200": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.8941176470588236,
+                  0.9058823529411765,
+                  0.9254901960784314
+                ],
+                "alpha": 1,
+                "hex": "#e4e7ec"
+              },
+              "$type": "color"
+            },
+            "gray50": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9725490196078431,
+                  0.9803921568627451,
+                  0.9882352941176471
+                ],
+                "alpha": 1,
+                "hex": "#f8fafc"
+              },
+              "$type": "color"
+            },
+            "green500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.13333333333333333,
+                  0.7725490196078432,
+                  0.3686274509803922
+                ],
+                "alpha": 1,
+                "hex": "#22c55e"
+              },
+              "$type": "color"
+            },
+            "amber500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9607843137254902,
+                  0.6196078431372549,
+                  0.043137254901960784
+                ],
+                "alpha": 1,
+                "hex": "#f59e0b"
+              },
+              "$type": "color"
+            },
+            "red500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9372549019607843,
+                  0.26666666666666666,
+                  0.26666666666666666
+                ],
+                "alpha": 1,
+                "hex": "#ef4444"
+              },
+              "$type": "color"
+            }
+          },
+          "spatial": {
+            "spacing-0": {
+              "$value": {
+                "value": 0,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-1": {
+              "$value": {
+                "value": 4,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-2": {
+              "$value": {
+                "value": 8,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-3": {
+              "$value": {
+                "value": 12,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-4": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-sm": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-md": {
+              "$value": {
+                "value": 24,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            }
+          },
+          "structural": {
+            "radius-none": {
+              "$value": {
+                "value": 0,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "radius-sm": {
+              "$value": {
+                "value": 4,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "radius-md": {
+              "$value": {
+                "value": 8,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "border-width-thin": {
+              "$value": {
+                "value": 1,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "border-width-medium": {
+              "$value": {
+                "value": 2,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            }
+          },
+          "gradient": {
+            "sunset": {
+              "$value": [
+                {
+                  "color": {
+                    "colorSpace": "srgb",
+                    "components": [
+                      0.8313725490196079,
+                      0.7490196078431373,
+                      0.5568627450980392
+                    ],
+                    "alpha": 1,
+                    "hex": "#d4bf8e"
+                  },
+                  "position": 0
+                },
+                {
+                  "color": {
+                    "colorSpace": "srgb",
+                    "components": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "alpha": 1,
+                    "hex": "#ffffff"
+                  },
+                  "position": 1
+                }
+              ],
+              "$type": "gradient",
+              "$extensions": {
+                "org.designsystem.motion": {
+                  "type": "linear",
+                  "angle": "45deg",
+                  "figmaHandlePositions": {
+                    "start": [
+                      0,
+                      0
+                    ],
+                    "end": [
+                      1,
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "semantic": {
+          "surface-page-default": {
+            "$value": "{brands.northstar.light.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "surface-panel-elevated": {
+            "$value": "{brands.northstar.light.primitives.color.white}",
+            "$type": "color"
+          },
+          "content-text-default": {
+            "$value": "{brands.northstar.light.primitives.color.gray950}",
+            "$type": "color"
+          },
+          "content-text-muted": {
+            "$value": "{brands.northstar.light.primitives.color.gray700}",
+            "$type": "color"
+          },
+          "border-control-subtle": {
+            "$value": "{brands.northstar.light.primitives.color.gray200}",
+            "$type": "color"
+          },
+          "action-brand-primary": {
+            "$value": "{brands.northstar.light.primitives.color.brandPrimary500}",
+            "$type": "color"
+          },
+          "action-brand-secondary": {
+            "$value": "{brands.northstar.light.primitives.color.brandSecondary500}",
+            "$type": "color"
+          },
+          "content-action-default": {
+            "$value": "{brands.northstar.light.primitives.color.white}",
+            "$type": "color"
+          },
+          "feedback-status-success": {
+            "$value": "{brands.northstar.light.primitives.color.green500}",
+            "$type": "color"
+          }
+        },
+        "component": {
+          "buttonPrimaryBg": {
+            "$value": "{brands.northstar.light.semantic.action-brand-primary}",
+            "$type": "color"
+          },
+          "buttonPrimaryText": {
+            "$value": "{brands.northstar.light.semantic.content-action-default}",
+            "$type": "color"
+          },
+          "buttonSecondaryBg": {
+            "$value": "{brands.northstar.light.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "buttonSecondaryText": {
+            "$value": "{brands.northstar.light.semantic.content-text-default}",
+            "$type": "color"
+          },
+          "cardBg": {
+            "$value": "{brands.northstar.light.semantic.surface-panel-elevated}",
+            "$type": "color"
+          },
+          "cardBorder": {
+            "$value": "{brands.northstar.light.semantic.border-control-subtle}",
+            "$type": "color"
+          },
+          "focusRing": {
+            "$value": "{brands.northstar.light.semantic.action-brand-primary}",
+            "$type": "color"
+          }
+        }
+      },
+      "dark": {
+        "primitives": {
+          "color": {
+            "white": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  1,
+                  1,
+                  1
+                ],
+                "alpha": 1,
+                "hex": "#ffffff"
+              },
+              "$type": "color"
+            },
+            "brandPrimary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.1450980392156863,
+                  0.38823529411764707,
+                  0.9215686274509803
+                ],
+                "alpha": 1,
+                "hex": "#2563eb"
+              },
+              "$type": "color"
+            },
+            "brandSecondary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.48627450980392156,
+                  0.22745098039215686,
+                  0.9294117647058824
+                ],
+                "alpha": 1,
+                "hex": "#7c3aed"
+              },
+              "$type": "color"
+            },
+            "gray950": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9725490196078431,
+                  0.9803921568627451,
+                  0.9882352941176471
+                ],
+                "alpha": 1,
+                "hex": "#f8fafc"
+              },
+              "$type": "color"
+            },
+            "gray700": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.8156862745098039,
+                  0.8352941176470589,
+                  0.8666666666666667
+                ],
+                "alpha": 1,
+                "hex": "#d0d5dd"
+              },
+              "$type": "color"
+            },
+            "gray500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.596078431372549,
+                  0.6352941176470588,
+                  0.7019607843137254
+                ],
+                "alpha": 1,
+                "hex": "#98a2b3"
+              },
+              "$type": "color"
+            },
+            "gray200": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.20392156862745098,
+                  0.25098039215686274,
+                  0.32941176470588235
+                ],
+                "alpha": 1,
+                "hex": "#344054"
+              },
+              "$type": "color"
+            },
+            "gray50": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.12156862745098039,
+                  0.1607843137254902,
+                  0.21568627450980393
+                ],
+                "alpha": 1,
+                "hex": "#1f2937"
+              },
+              "$type": "color"
+            },
+            "green500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.20392156862745098,
+                  0.8274509803921568,
+                  0.6
+                ],
+                "alpha": 1,
+                "hex": "#34d399"
+              },
+              "$type": "color"
+            },
+            "amber500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.984313725490196,
+                  0.7490196078431373,
+                  0.1411764705882353
+                ],
+                "alpha": 1,
+                "hex": "#fbbf24"
+              },
+              "$type": "color"
+            },
+            "red500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9725490196078431,
+                  0.44313725490196076,
+                  0.44313725490196076
+                ],
+                "alpha": 1,
+                "hex": "#f87171"
+              },
+              "$type": "color"
+            }
+          },
+          "spatial": {
+            "spacing-0": {
+              "$value": {
+                "value": 0,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-1": {
+              "$value": {
+                "value": 4,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-2": {
+              "$value": {
+                "value": 8,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-3": {
+              "$value": {
+                "value": 12,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-4": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-sm": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-md": {
+              "$value": {
+                "value": 24,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            }
+          },
+          "gradient": {
+            "sunset": {
+              "$value": [
+                {
+                  "color": {
+                    "colorSpace": "srgb",
+                    "components": [
+                      0.8313725490196079,
+                      0.7490196078431373,
+                      0.5568627450980392
+                    ],
+                    "alpha": 1,
+                    "hex": "#d4bf8e"
+                  },
+                  "position": 0
+                },
+                {
+                  "color": {
+                    "colorSpace": "srgb",
+                    "components": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "alpha": 1,
+                    "hex": "#ffffff"
+                  },
+                  "position": 1
+                }
+              ],
+              "$type": "gradient",
+              "$extensions": {
+                "org.designsystem.motion": {
+                  "type": "linear",
+                  "angle": "45deg",
+                  "figmaHandlePositions": {
+                    "start": [
+                      0,
+                      0
+                    ],
+                    "end": [
+                      1,
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "semantic": {
+          "surface-page-default": {
+            "$value": "{brands.northstar.dark.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "surface-panel-elevated": {
+            "$value": "{brands.northstar.dark.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "content-text-default": {
+            "$value": "{brands.northstar.dark.primitives.color.gray950}",
+            "$type": "color"
+          },
+          "content-text-muted": {
+            "$value": "{brands.northstar.dark.primitives.color.gray700}",
+            "$type": "color"
+          },
+          "border-control-subtle": {
+            "$value": "{brands.northstar.dark.primitives.color.gray200}",
+            "$type": "color"
+          },
+          "action-brand-primary": {
+            "$value": "{brands.northstar.dark.primitives.color.brandPrimary500}",
+            "$type": "color"
+          },
+          "action-brand-secondary": {
+            "$value": "{brands.northstar.dark.primitives.color.brandSecondary500}",
+            "$type": "color"
+          },
+          "content-action-default": {
+            "$value": "{brands.northstar.dark.primitives.color.white}",
+            "$type": "color"
+          },
+          "feedback-status-success": {
+            "$value": "{brands.northstar.dark.primitives.color.green500}",
+            "$type": "color"
+          }
+        },
+        "component": {
+          "buttonPrimaryBg": {
+            "$value": "{brands.northstar.dark.semantic.action-brand-primary}",
+            "$type": "color"
+          },
+          "buttonPrimaryText": {
+            "$value": "{brands.northstar.dark.semantic.content-action-default}",
+            "$type": "color"
+          },
+          "buttonSecondaryBg": {
+            "$value": "{brands.northstar.dark.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "buttonSecondaryText": {
+            "$value": "{brands.northstar.dark.semantic.content-text-default}",
+            "$type": "color"
+          },
+          "cardBg": {
+            "$value": "{brands.northstar.dark.semantic.surface-panel-elevated}",
+            "$type": "color"
+          },
+          "cardBorder": {
+            "$value": "{brands.northstar.dark.semantic.border-control-subtle}",
+            "$type": "color"
+          },
+          "focusRing": {
+            "$value": "{brands.northstar.dark.semantic.action-brand-primary}",
+            "$type": "color"
+          }
+        }
+      }
+    },
+    "sunset": {
+      "light": {
+        "primitives": {
+          "color": {
+            "white": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  1,
+                  1,
+                  1
+                ],
+                "alpha": 1,
+                "hex": "#ffffff"
+              },
+              "$type": "color"
+            },
+            "brandPrimary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9764705882352941,
+                  0.45098039215686275,
+                  0.08627450980392157
+                ],
+                "alpha": 1,
+                "hex": "#f97316"
+              },
+              "$type": "color"
+            },
+            "brandSecondary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9254901960784314,
+                  0.2823529411764706,
+                  0.6
+                ],
+                "alpha": 1,
+                "hex": "#ec4899"
+              },
+              "$type": "color"
+            },
+            "gray950": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.06274509803921569,
+                  0.09411764705882353,
+                  0.1568627450980392
+                ],
+                "alpha": 1,
+                "hex": "#101828"
+              },
+              "$type": "color"
+            },
+            "gray700": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.2784313725490196,
+                  0.32941176470588235,
+                  0.403921568627451
+                ],
+                "alpha": 1,
+                "hex": "#475467"
+              },
+              "$type": "color"
+            },
+            "gray500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.4,
+                  0.4392156862745098,
+                  0.5215686274509804
+                ],
+                "alpha": 1,
+                "hex": "#667085"
+              },
+              "$type": "color"
+            },
+            "gray200": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.8941176470588236,
+                  0.9058823529411765,
+                  0.9254901960784314
+                ],
+                "alpha": 1,
+                "hex": "#e4e7ec"
+              },
+              "$type": "color"
+            },
+            "gray50": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  1,
+                  0.9686274509803922,
+                  0.9294117647058824
+                ],
+                "alpha": 1,
+                "hex": "#fff7ed"
+              },
+              "$type": "color"
+            },
+            "green500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.13333333333333333,
+                  0.7725490196078432,
+                  0.3686274509803922
+                ],
+                "alpha": 1,
+                "hex": "#22c55e"
+              },
+              "$type": "color"
+            },
+            "amber500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9607843137254902,
+                  0.6196078431372549,
+                  0.043137254901960784
+                ],
+                "alpha": 1,
+                "hex": "#f59e0b"
+              },
+              "$type": "color"
+            },
+            "red500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9372549019607843,
+                  0.26666666666666666,
+                  0.26666666666666666
+                ],
+                "alpha": 1,
+                "hex": "#ef4444"
+              },
+              "$type": "color"
+            }
+          },
+          "spatial": {
+            "spacing-0": {
+              "$value": {
+                "value": 0,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-1": {
+              "$value": {
+                "value": 4,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-2": {
+              "$value": {
+                "value": 8,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-3": {
+              "$value": {
+                "value": 12,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-4": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-sm": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-md": {
+              "$value": {
+                "value": 24,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            }
+          }
+        },
+        "semantic": {
+          "surface-page-default": {
+            "$value": "{brands.sunset.light.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "surface-panel-elevated": {
+            "$value": "{brands.sunset.light.primitives.color.white}",
+            "$type": "color"
+          },
+          "content-text-default": {
+            "$value": "{brands.sunset.light.primitives.color.gray950}",
+            "$type": "color"
+          },
+          "content-text-muted": {
+            "$value": "{brands.sunset.light.primitives.color.gray700}",
+            "$type": "color"
+          },
+          "border-control-subtle": {
+            "$value": "{brands.sunset.light.primitives.color.gray200}",
+            "$type": "color"
+          },
+          "action-brand-primary": {
+            "$value": "{brands.sunset.light.primitives.color.brandPrimary500}",
+            "$type": "color"
+          },
+          "action-brand-secondary": {
+            "$value": "{brands.sunset.light.primitives.color.brandSecondary500}",
+            "$type": "color"
+          },
+          "content-action-default": {
+            "$value": "{brands.sunset.light.primitives.color.white}",
+            "$type": "color"
+          },
+          "feedback-status-success": {
+            "$value": "{brands.sunset.light.primitives.color.green500}",
+            "$type": "color"
+          }
+        },
+        "component": {
+          "buttonPrimaryBg": {
+            "$value": "{brands.sunset.light.semantic.action-brand-primary}",
+            "$type": "color"
+          },
+          "buttonPrimaryText": {
+            "$value": "{brands.sunset.light.semantic.content-action-default}",
+            "$type": "color"
+          },
+          "buttonSecondaryBg": {
+            "$value": "{brands.sunset.light.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "buttonSecondaryText": {
+            "$value": "{brands.sunset.light.semantic.content-text-default}",
+            "$type": "color"
+          },
+          "cardBg": {
+            "$value": "{brands.sunset.light.semantic.surface-panel-elevated}",
+            "$type": "color"
+          },
+          "cardBorder": {
+            "$value": "{brands.sunset.light.semantic.border-control-subtle}",
+            "$type": "color"
+          },
+          "focusRing": {
+            "$value": "{brands.sunset.light.semantic.action-brand-primary}",
+            "$type": "color"
+          }
+        }
+      },
+      "dark": {
+        "primitives": {
+          "color": {
+            "white": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  1,
+                  1,
+                  1
+                ],
+                "alpha": 1,
+                "hex": "#ffffff"
+              },
+              "$type": "color"
+            },
+            "brandPrimary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9764705882352941,
+                  0.45098039215686275,
+                  0.08627450980392157
+                ],
+                "alpha": 1,
+                "hex": "#f97316"
+              },
+              "$type": "color"
+            },
+            "brandSecondary500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9254901960784314,
+                  0.2823529411764706,
+                  0.6
+                ],
+                "alpha": 1,
+                "hex": "#ec4899"
+              },
+              "$type": "color"
+            },
+            "gray950": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9725490196078431,
+                  0.9803921568627451,
+                  0.9882352941176471
+                ],
+                "alpha": 1,
+                "hex": "#f8fafc"
+              },
+              "$type": "color"
+            },
+            "gray700": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.8156862745098039,
+                  0.8352941176470589,
+                  0.8666666666666667
+                ],
+                "alpha": 1,
+                "hex": "#d0d5dd"
+              },
+              "$type": "color"
+            },
+            "gray500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.596078431372549,
+                  0.6352941176470588,
+                  0.7019607843137254
+                ],
+                "alpha": 1,
+                "hex": "#98a2b3"
+              },
+              "$type": "color"
+            },
+            "gray200": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.20392156862745098,
+                  0.25098039215686274,
+                  0.32941176470588235
+                ],
+                "alpha": 1,
+                "hex": "#344054"
+              },
+              "$type": "color"
+            },
+            "gray50": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.10196078431372549,
+                  0.06666666666666667,
+                  0.12549019607843137
+                ],
+                "alpha": 1,
+                "hex": "#1a1120"
+              },
+              "$type": "color"
+            },
+            "green500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.20392156862745098,
+                  0.8274509803921568,
+                  0.6
+                ],
+                "alpha": 1,
+                "hex": "#34d399"
+              },
+              "$type": "color"
+            },
+            "amber500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.984313725490196,
+                  0.7490196078431373,
+                  0.1411764705882353
+                ],
+                "alpha": 1,
+                "hex": "#fbbf24"
+              },
+              "$type": "color"
+            },
+            "red500": {
+              "$value": {
+                "colorSpace": "srgb",
+                "components": [
+                  0.9725490196078431,
+                  0.44313725490196076,
+                  0.44313725490196076
+                ],
+                "alpha": 1,
+                "hex": "#f87171"
+              },
+              "$type": "color"
+            }
+          },
+          "spatial": {
+            "spacing-0": {
+              "$value": {
+                "value": 0,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-1": {
+              "$value": {
+                "value": 4,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-2": {
+              "$value": {
+                "value": 8,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-3": {
+              "$value": {
+                "value": 12,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "spacing-4": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-sm": {
+              "$value": {
+                "value": 16,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            },
+            "size-icon-md": {
+              "$value": {
+                "value": 24,
+                "unit": "px"
+              },
+              "$type": "dimension"
+            }
+          }
+        },
+        "semantic": {
+          "surface-page-default": {
+            "$value": "{brands.sunset.dark.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "surface-panel-elevated": {
+            "$value": "{brands.sunset.dark.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "content-text-default": {
+            "$value": "{brands.sunset.dark.primitives.color.gray950}",
+            "$type": "color"
+          },
+          "content-text-muted": {
+            "$value": "{brands.sunset.dark.primitives.color.gray700}",
+            "$type": "color"
+          },
+          "border-control-subtle": {
+            "$value": "{brands.sunset.dark.primitives.color.gray200}",
+            "$type": "color"
+          },
+          "action-brand-primary": {
+            "$value": "{brands.sunset.dark.primitives.color.brandPrimary500}",
+            "$type": "color"
+          },
+          "action-brand-secondary": {
+            "$value": "{brands.sunset.dark.primitives.color.brandSecondary500}",
+            "$type": "color"
+          },
+          "content-action-default": {
+            "$value": "{brands.sunset.dark.primitives.color.white}",
+            "$type": "color"
+          },
+          "feedback-status-success": {
+            "$value": "{brands.sunset.dark.primitives.color.green500}",
+            "$type": "color"
+          }
+        },
+        "component": {
+          "buttonPrimaryBg": {
+            "$value": "{brands.sunset.dark.semantic.action-brand-primary}",
+            "$type": "color"
+          },
+          "buttonPrimaryText": {
+            "$value": "{brands.sunset.dark.semantic.content-action-default}",
+            "$type": "color"
+          },
+          "buttonSecondaryBg": {
+            "$value": "{brands.sunset.dark.primitives.color.gray50}",
+            "$type": "color"
+          },
+          "buttonSecondaryText": {
+            "$value": "{brands.sunset.dark.semantic.content-text-default}",
+            "$type": "color"
+          },
+          "cardBg": {
+            "$value": "{brands.sunset.dark.semantic.surface-panel-elevated}",
+            "$type": "color"
+          },
+          "cardBorder": {
+            "$value": "{brands.sunset.dark.semantic.border-control-subtle}",
+            "$type": "color"
+          },
+          "focusRing": {
+            "$value": "{brands.sunset.dark.semantic.action-brand-primary}",
+            "$type": "color"
+          }
+        }
+      }
+    }
+  }
+}

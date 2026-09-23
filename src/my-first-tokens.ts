@@ -11,6 +11,7 @@ import type {
   PrimitiveColorSaveDetail,
   PrimitiveGroupName,
   ScaleSaveDetail,
+  GradientSaveDetail,
   SpatialSaveDetail,
   ThemeTokens,
   TokenChangeDetail,
@@ -19,6 +20,7 @@ import type {
 import './components/primitive-color-dialog.js'
 import './components/primitive-scale-dialog.js'
 import './components/primitive-spatial-dialog.js'
+import './components/primitive-gradient-dialog.js'
 import './components/token-row.js'
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
@@ -36,6 +38,8 @@ export class TokenSyncApp extends LitElement {
     primitiveDialogError: { type: String },
     scaleDialogOpen: { type: Boolean },
     scaleDialogError: { type: String },
+    gradientDialogOpen: { type: Boolean },
+    gradientDialogError: { type: String },
     spatialDialogOpen: { type: Boolean },
     spatialDialogError: { type: String },
     fileLoadError: { type: String },
@@ -55,6 +59,8 @@ export class TokenSyncApp extends LitElement {
   declare primitiveDialogError: string
   declare scaleDialogOpen: boolean
   declare scaleDialogError: string
+  declare gradientDialogOpen: boolean
+  declare gradientDialogError: string
   declare spatialDialogOpen: boolean
   declare spatialDialogError: string
   declare fileLoadError: string
@@ -75,6 +81,8 @@ export class TokenSyncApp extends LitElement {
     this.primitiveDialogError = ''
     this.scaleDialogOpen = false
     this.scaleDialogError = ''
+    this.gradientDialogOpen = false
+    this.gradientDialogError = ''
     this.spatialDialogOpen = false
     this.spatialDialogError = ''
     this.fileLoadError = ''
@@ -262,6 +270,36 @@ export class TokenSyncApp extends LitElement {
     this.requestUpdate()
   }
 
+  _openGradientDialog() {
+    this.gradientDialogError = ''
+    this.gradientDialogOpen = true
+  }
+
+  _closeGradientDialog() {
+    this.gradientDialogOpen = false
+    this.gradientDialogError = ''
+  }
+
+  _saveGradient(event: CustomEvent<GradientSaveDetail>) {
+    const brand = this.currentBrand
+    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
+    if (!themes.length) return
+
+    const { tokenName, stops, extensions } = event.detail
+    if (themes.some((theme) => Object.hasOwn(theme.primitives.gradient ?? {}, tokenName))) {
+      this.gradientDialogError = `A primitive named ${tokenName} already exists.`
+      return
+    }
+
+    themes.forEach((theme) => {
+      const gradients = theme.primitives.gradient ?? (theme.primitives.gradient = {})
+      gradients[tokenName] = { stops, extensions }
+    })
+    this.gradientDialogOpen = false
+    this.gradientDialogError = ''
+    this.requestUpdate()
+  }
+
   _openSpatialDialog() {
     this.spatialDialogError = ''
     this.spatialDialogOpen = true
@@ -391,6 +429,7 @@ export class TokenSyncApp extends LitElement {
                 <option value="color">Color</option>
                 <option value="spatial">Spatial</option>
                 <option value="structural">Structural</option>
+                <option value="gradient">Gradient</option>
               </select>
             </label>
             ${
@@ -399,7 +438,9 @@ export class TokenSyncApp extends LitElement {
                     <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
                     <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
                   `
-                : html`<button class="section-action" @click=${this._openSpatialDialog}>+ Add ${this.primitiveFilter}</button>`
+                : this.primitiveFilter === 'gradient'
+                  ? html`<button class="section-action" @click=${this._openGradientDialog}>+ Add gradient</button>`
+                  : html`<button class="section-action" @click=${this._openSpatialDialog}>+ Add ${this.primitiveFilter}</button>`
             }
           </div>
         </div>
@@ -440,6 +481,12 @@ export class TokenSyncApp extends LitElement {
         @cancel=${this._closeScaleDialog}
         @save=${this._saveScale}
       ></primitive-scale-dialog>
+      <primitive-gradient-dialog
+        .open=${this.gradientDialogOpen}
+        .error=${this.gradientDialogError}
+        @cancel=${this._closeGradientDialog}
+        @save=${this._saveGradient}
+      ></primitive-gradient-dialog>
       <primitive-spatial-dialog
         .open=${this.spatialDialogOpen}
         .error=${this.spatialDialogError}

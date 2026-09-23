@@ -109,7 +109,13 @@ export class TknTokenRow extends LitElement {
         </span>
 
         ${
-          this.section === 'primitives' && this.primitiveGroup === 'color'
+          this.section === 'primitives' && this.primitiveGroup === 'gradient'
+            ? html`
+                <div class="gradient-preview" style=${this._gradientStyle(value)}>
+                  <span>Gradient</span>
+                </div>
+              `
+            : this.section === 'primitives' && this.primitiveGroup === 'color'
             ? html`
                 <tkn-color-input
                   name=${`${this.section}-${this.tokenKey}`}
@@ -175,6 +181,15 @@ export class TknTokenRow extends LitElement {
     `
   }
 
+  private _gradientStyle(value: unknown): string {
+    if (!value || typeof value !== 'object' || !('stops' in value)) return 'background: #000000'
+    const gradient = value as { stops: Array<{ color: string; position: number }> }
+    const stops = gradient.stops
+      .map((stop) => `${resolveToken(stop.color, this.theme).value} ${stop.position * 100}%`)
+      .join(', ')
+    return `background: linear-gradient(90deg, ${stops})`
+  }
+
   static styles = css`
     :host {
       display: block;
@@ -198,6 +213,19 @@ export class TknTokenRow extends LitElement {
       font-size: 12px;
       opacity: 0.8;
       text-transform: lowercase;
+    }
+
+    .gradient-preview {
+      display: flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid rgba(15, 23, 42, 0.2);
+      border-radius: 10px;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
     }
 
     .token-issue {
