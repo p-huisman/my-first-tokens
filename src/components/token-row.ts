@@ -10,6 +10,8 @@ const issueMessages: Record<string, string> = {
   invalid: 'Not a valid colour',
 }
 
+let openTokenMenu: HTMLDetailsElement | null = null
+
 /**
  * One token row: a colour input for primitives, a reference picker for
  * semantic/component tokens. The row owns its data lookups so only the rows
@@ -34,6 +36,33 @@ export class TknTokenRow extends LitElement {
     this.section = 'primitives'
     this.primitiveGroup = 'color'
     this.theme = {}
+  }
+
+  connectedCallback() {
+    super.connectedCallback()
+    document.addEventListener('pointerdown', this._handleDocumentPointerDown)
+    document.addEventListener('keydown', this._handleDocumentKeyDown)
+  }
+
+  disconnectedCallback() {
+    document.removeEventListener('pointerdown', this._handleDocumentPointerDown)
+    document.removeEventListener('keydown', this._handleDocumentKeyDown)
+    const menu = this.renderRoot.querySelector<HTMLDetailsElement>('.token-menu')
+    if (openTokenMenu === menu) openTokenMenu = null
+    super.disconnectedCallback()
+  }
+
+  private _handleDocumentPointerDown = (event: PointerEvent) => {
+    const menu = this.renderRoot.querySelector<HTMLDetailsElement>('.token-menu')
+    if (menu?.open === true && !event.composedPath().includes(menu)) menu.open = false
+  }
+
+  private _handleDocumentKeyDown = (event: KeyboardEvent) => {
+    const menu = this.renderRoot.querySelector<HTMLDetailsElement>('.token-menu')
+    if (event.key !== 'Escape' || menu?.open !== true) return
+    event.preventDefault()
+    menu.open = false
+    menu.querySelector<HTMLElement>('summary')?.focus()
   }
 
   private _referenceOf(value: unknown): string | null {
@@ -90,12 +119,32 @@ export class TknTokenRow extends LitElement {
     if (details !== null && details !== undefined) details.open = false
   }
 
+  private _handleMenuToggle(event: Event) {
+    const menu = event.currentTarget as HTMLDetailsElement
+    if (menu.open) {
+      if (openTokenMenu !== null && openTokenMenu !== menu) openTokenMenu.open = false
+      openTokenMenu = menu
+    } else if (openTokenMenu === menu) {
+      openTokenMenu = null
+    }
+  }
+
   private _editGradient(value: unknown) {
-    this.dispatchEvent(new CustomEvent('gradient-edit', {
-      detail: { key: this.tokenKey, value },
-      bubbles: true,
-      composed: true,
-    }))
+    this.dispatchEvent(
+      new CustomEvent('gradient-edit', {
+        detail: { key: this.tokenKey, value },
+        bubbles: true,
+        composed: true,
+      }),
+    )
+  }
+
+  private _referencePreview(option: ReferenceOption | undefined, fallback: string) {
+    if (option === undefined) return html`<span class="token-swatch" aria-hidden="true" style=${`background:${fallback}`}></span>`
+    if (option.group === 'color' || option.group === 'gradient') {
+      return html`<span class="token-swatch" aria-hidden="true" style=${`background:${option.preview}`}></span>`
+    }
+    return html`<span class="token-spacer" aria-hidden="true"></span>`
   }
 
   render() {
@@ -125,66 +174,62 @@ export class TknTokenRow extends LitElement {
                 </button>
               `
             : this.section === 'primitives' && this.primitiveGroup === 'color'
-            ? html`
-                <tkn-color-input
-                  name=${`${this.section}-${this.tokenKey}`}
-                  .value=${resolution.value}
-                  @value-change=${this._handleColorChange}
-                ></tkn-color-input>
-              `
-            : this.section === 'primitives'
               ? html`
-                  <div class="spatial-editor">
-                    <input
-                      name="spatial-value"
-                      type="number"
-                      step="any"
-                      .value=${/^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(String(value ?? ''))?.[1] ?? ''}
-                      @input=${this._handleSpatialChange}
-                    />
-                    <select
-                      name="spatial-unit"
-                      .value=${/^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(String(value ?? ''))?.[2] ?? 'px'}
-                      @change=${this._handleSpatialChange}
-                    >
-                      <option value="px">px</option>
-                      <option value="rem">rem</option>
-                      <option value="em">em</option>
-                      <option value="%">%</option>
-                    </select>
-                  </div>
+                  <tkn-color-input
+                    name=${`${this.section}-${this.tokenKey}`}
+                    .value=${resolution.value}
+                    @value-change=${this._handleColorChange}
+                  ></tkn-color-input>
                 `
-              : html`
-                  <div class="token-link-editor">
-                    <details class="token-menu">
-                      <summary>
-                        <span class="token-choice">
-                          <span
-                            class="token-swatch"
-                            aria-hidden="true"
-                            style=${`background:${selected?.color ?? toCssColor(resolution.value) ?? '#000000'}`}
-                          ></span>
-                          <span class="token-text">${selected?.label ?? selectedValue}</span>
-                        </span>
-                      </summary>
-                      <div class="token-options">
-                        ${options.map(
-                          (option) => html`
-                            <button
-                              type="button"
-                              class=${option.value === selectedValue ? 'token-option selected' : 'token-option'}
-                              aria-current=${option.value === selectedValue ? 'true' : nothing}
-                              @click=${(event: Event) => this._handleOptionClick(event, option.value)}
-                            >
-                              <span class="token-swatch" aria-hidden="true" style=${`background:${option.color}`}></span>
-                              <span>${option.label}</span>
-                            </button>
-                          `,
-                        )}
-                      </div>
-                    </details>
-                  </div>
-                `
+              : this.section === 'primitives'
+                ? html`
+                    <div class="spatial-editor">
+                      <input
+                        name="spatial-value"
+                        type="number"
+                        step="any"
+                        .value=${/^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(String(value ?? ''))?.[1] ?? ''}
+                        @input=${this._handleSpatialChange}
+                      />
+                      <select
+                        name="spatial-unit"
+                        .value=${/^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(String(value ?? ''))?.[2] ?? 'px'}
+                        @change=${this._handleSpatialChange}
+                      >
+                        <option value="px">px</option>
+                        <option value="rem">rem</option>
+                        <option value="em">em</option>
+                        <option value="%">%</option>
+                      </select>
+                    </div>
+                  `
+                : html`
+                    <div class="token-link-editor">
+                      <details class="token-menu" @toggle=${this._handleMenuToggle}>
+                        <summary>
+                          <span class="token-choice">
+                            ${this._referencePreview(selected, toCssColor(resolution.value) ?? '#000000')}
+                            <span class="token-text">${selected?.label ?? selectedValue}</span>
+                          </span>
+                        </summary>
+                        <div class="token-options">
+                          ${options.map(
+                            (option) => html`
+                              <button
+                                type="button"
+                                class=${option.value === selectedValue ? 'token-option selected' : 'token-option'}
+                                aria-current=${option.value === selectedValue ? 'true' : nothing}
+                                @click=${(event: Event) => this._handleOptionClick(event, option.value)}
+                              >
+                                ${this._referencePreview(option, '#000000')}
+                                <span>${option.label}</span>
+                              </button>
+                            `,
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  `
         }
       </div>
     `
@@ -193,9 +238,7 @@ export class TknTokenRow extends LitElement {
   private _gradientStyle(value: unknown): string {
     if (!value || typeof value !== 'object' || !('stops' in value)) return 'background: #000000'
     const gradient = value as { stops: Array<{ color: string; position: number }> }
-    const stops = gradient.stops
-      .map((stop) => `${resolveToken(stop.color, this.theme).value} ${stop.position * 100}%`)
-      .join(', ')
+    const stops = gradient.stops.map((stop) => `${resolveToken(stop.color, this.theme).value} ${stop.position * 100}%`).join(', ')
     return `background: linear-gradient(90deg, ${stops})`
   }
 
@@ -219,8 +262,8 @@ export class TknTokenRow extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 12px;
-      opacity: 0.8;
+      font-size: 14px;
+      font-weight: 600;
       text-transform: lowercase;
     }
 
@@ -240,7 +283,10 @@ export class TknTokenRow extends LitElement {
       cursor: pointer;
     }
 
-    .gradient-edit-label { font-size: 11px; opacity: .85; }
+    .gradient-edit-label {
+      font-size: 11px;
+      opacity: 0.85;
+    }
 
     .token-issue {
       color: #f59e0b;
@@ -307,8 +353,22 @@ export class TknTokenRow extends LitElement {
       border-radius: 4px;
     }
 
+    .token-spacer {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
+      visibility: hidden;
+    }
+
     .token-text {
       word-wrap: anywhere;
+    }
+
+    .token-choice .token-text {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0;
+      opacity: 0.7;
     }
 
     .token-options {
@@ -316,10 +376,13 @@ export class TknTokenRow extends LitElement {
       z-index: 5;
       top: calc(100% + 6px);
       right: 0;
-      left: 0;
       display: grid;
+      width: max-content;
+      min-width: 100%;
+      max-width: min(420px, calc(100vw - 32px));
       max-height: 240px;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       padding: 6px;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -340,6 +403,10 @@ export class TknTokenRow extends LitElement {
       font-weight: 400;
       letter-spacing: 0;
       cursor: pointer;
+    }
+
+    .token-option > span:last-child {
+      overflow-wrap: anywhere;
     }
 
     .token-option:hover,

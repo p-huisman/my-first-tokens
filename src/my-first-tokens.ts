@@ -3,7 +3,7 @@ import type { PropertyValues } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { fromDesignTokensFormat, normalizeBrand, toDesignTokensFormat } from './lib/dtcg.js'
 import { NEW_BRAND_PALETTE, createDefaultBrands, seedBrand, uniqueBrandId } from './lib/seed.js'
-import { buildCssVariables, buildThemeStyle, collectTokenIssues } from './lib/tokens.js'
+import { buildCssVariables, buildThemeStyle, collectTokenIssues, referenceOptions, toKebab } from './lib/tokens.js'
 import { hasPrimitives } from './lib/guards.js'
 import type {
   Brand,
@@ -12,6 +12,7 @@ import type {
   PrimitiveGroupName,
   ScaleSaveDetail,
   GradientSaveDetail,
+  SemanticSaveDetail,
   SpatialSaveDetail,
   ThemeTokens,
   TokenChangeDetail,
@@ -21,6 +22,7 @@ import './components/primitive-color-dialog.js'
 import './components/primitive-scale-dialog.js'
 import './components/primitive-spatial-dialog.js'
 import './components/primitive-gradient-dialog.js'
+import './components/semantic-token-dialog.js'
 import './components/token-row.js'
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
@@ -45,6 +47,8 @@ export class TokenSyncApp extends LitElement {
     fileLoadError: { type: String },
     addingBrand: { type: Boolean },
     newBrandName: { type: String },
+    semanticDialogOpen: { type: Boolean },
+    semanticDialogError: { type: String },
     copyStatus: { type: String },
   }
 
@@ -66,6 +70,8 @@ export class TokenSyncApp extends LitElement {
   declare fileLoadError: string
   declare addingBrand: boolean
   declare newBrandName: string
+  declare semanticDialogOpen: boolean
+  declare semanticDialogError: string
   declare copyStatus: string
 
   constructor() {
@@ -88,6 +94,8 @@ export class TokenSyncApp extends LitElement {
     this.fileLoadError = ''
     this.addingBrand = false
     this.newBrandName = ''
+    this.semanticDialogOpen = false
+    this.semanticDialogError = ''
     this.copyStatus = ''
   }
 
@@ -203,6 +211,33 @@ export class TokenSyncApp extends LitElement {
     if (tokens === undefined) return
 
     tokens[key] = value.startsWith('#') ? value : `{${value}}`
+    this.requestUpdate()
+  }
+
+  _openSemanticDialog() {
+    this.semanticDialogError = ''
+    this.semanticDialogOpen = true
+  }
+
+  _closeSemanticDialog() {
+    this.semanticDialogOpen = false
+    this.semanticDialogError = ''
+  }
+
+  _saveSemanticToken(event: CustomEvent<SemanticSaveDetail>) {
+    const key = toKebab(event.detail.tokenName)
+    const themes = this.brands.flatMap((brand) => Object.values(brand.themes))
+    if (themes.some((theme) => Object.hasOwn(theme.semantic ?? {}, key))) {
+      this.semanticDialogError = `A semantic token named ${key} already exists.`
+      return
+    }
+
+    themes.forEach((theme) => {
+      const semantic = theme.semantic ?? (theme.semantic = {})
+      semantic[key] = `{${event.detail.reference}}`
+    })
+    this.semanticDialogOpen = false
+    this.semanticDialogError = ''
     this.requestUpdate()
   }
 
@@ -506,6 +541,13 @@ export class TokenSyncApp extends LitElement {
         @cancel=${this._closeSpatialDialog}
         @save=${this._saveSpatial}
       ></primitive-spatial-dialog>
+      <semantic-token-dialog
+        .open=${this.semanticDialogOpen}
+        .error=${this.semanticDialogError}
+        .options=${referenceOptions(theme, 'semantic', '')}
+        @cancel=${this._closeSemanticDialog}
+        @save=${this._saveSemanticToken}
+      ></semantic-token-dialog>
 
       <div class="app-shell" style=${buildThemeStyle(theme)}>
         <header class="topbar">
@@ -583,8 +625,11 @@ export class TokenSyncApp extends LitElement {
               ([section, values]) => html`
                 <article class="token-section">
                   <div class="section-header">
-                    <h2>${section}</h2>
-                    <span>${Object.keys(values ?? {}).length} tokens</span>
+                    <div class="section-title">
+                      <h2>${section}</h2>
+                      <span>${Object.keys(values ?? {}).length} tokens</span>
+                    </div>
+                    ${section === 'semantic' ? html`<button class="section-action" @click=${this._openSemanticDialog}>+ Add semantic</button>` : nothing}
                   </div>
 
                   <div class="token-grid">
@@ -854,6 +899,13 @@ export class TokenSyncApp extends LitElement {
       padding: 7px 10px;
       border-radius: 8px;
       font-size: 12px;
+    }
+
+    .section-title,
+    .section-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .primitive-filter select {

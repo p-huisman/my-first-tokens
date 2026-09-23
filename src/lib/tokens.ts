@@ -96,12 +96,14 @@ export const referenceOptions = (theme: ThemeTokens, section: SectionName, key: 
   const seen = new Set<string>()
 
   for (const candidate of referenceSections(section)) {
-    const candidateTokens = candidate === 'primitives' ? (theme.primitives?.color ?? {}) : (theme[candidate] ?? {})
-    for (const [tokenKey, value] of Object.entries(candidateTokens)) {
-      const path = candidate === 'primitives' ? `primitives.color.${tokenKey}` : `${candidate}.${tokenKey}`
-      if (path === `${section}.${key}` || seen.has(path)) continue
-      seen.add(path)
-      options.push({ label: path, value: path, color: resolveTokenValue(value, theme) })
+    const groups = candidate === 'primitives' ? Object.entries(theme.primitives ?? {}) : [[candidate, theme[candidate] ?? {}] as const]
+    for (const [group, candidateTokens] of groups) {
+      for (const [tokenKey, value] of Object.entries(candidateTokens ?? {})) {
+        const path = candidate === 'primitives' ? `primitives.${group}.${tokenKey}` : `${candidate}.${tokenKey}`
+        if (path === `${section}.${key}` || seen.has(path)) continue
+        seen.add(path)
+        options.push({ label: path, value: path, preview: resolveTokenValue(value, theme), group })
+      }
     }
   }
 

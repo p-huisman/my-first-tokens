@@ -70,7 +70,8 @@ export type SectionName = 'primitives' | 'semantic' | 'component'
 export interface ReferenceOption {
   label: string
   value: string
-  color: string
+  preview: string
+  group: string
 }
 
 export interface DtcgToken {
@@ -106,6 +107,11 @@ export interface GradientSaveDetail {
   originalTokenName?: string
   stops: GradientStop[]
   extensions: Record<string, unknown>
+}
+
+export interface SemanticSaveDetail {
+  tokenName: string
+  reference: string
 }
 
 export interface TokenChangeDetail {

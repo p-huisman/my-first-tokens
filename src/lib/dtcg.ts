@@ -74,11 +74,11 @@ export const normalizeImportedValue = (value: unknown): unknown => {
 /** `{brands.brand.theme.primitives.x}` → `{primitives.x}` for the brand/theme being imported. */
 export const toLocalReference = (value: unknown, brandId: string, themeName: string): unknown => {
   if (typeof value !== 'string') return value
+  let reference = value
   const prefix = `{brands.${brandId}.${themeName}.`
-  if (value.startsWith(prefix) && value.endsWith('}')) value = `{${value.slice(prefix.length, -1)}}`
-  if (typeof value === 'string' && value.startsWith('{primitives.') && !value.startsWith('{primitives.color.') && value.endsWith('}'))
-    return value.replace('{primitives.', '{primitives.color.')
-  return value
+  if (reference.startsWith(prefix) && reference.endsWith('}')) reference = `{${reference.slice(prefix.length, -1)}}`
+  if (/^\{primitives\.[^.{}]+\}$/.test(reference)) return reference.replace('{primitives.', '{primitives.color.')
+  return reference
 }
 
 /** `{primitives.x}` → `{brands.brand.theme.primitives.x}`; absolute refs are left alone. */
@@ -138,6 +138,13 @@ const toGradientColor = (value: string, brandId: string, themeName: string): str
   return toDtcgValue(reference, brandId, themeName) as string | DtcgColorValue
 }
 
+const aliasType = (value: TokenValue): 'color' | 'dimension' | 'gradient' => {
+  if (typeof value !== 'string') return 'color'
+  if (value.startsWith('{primitives.gradient.')) return 'gradient'
+  if (value.startsWith('{primitives.spatial.') || value.startsWith('{primitives.structural.')) return 'dimension'
+  return 'color'
+}
+
 /**
  * Rewrites bare colours on well-known semantic/component keys into the reference
  * the token is expected to carry. Unknown keys keep their literal colour — the
@@ -180,10 +187,10 @@ export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
                 return [
                   sectionName,
                   Object.fromEntries(
-                    Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => [
-                      key,
-                      { $value: toDtcgValue(value, brand.id, themeName), $type: 'color' },
-                    ]),
+                    Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => {
+                      const type = aliasType(value)
+                      return [key, { $value: toTypedDtcgValue(value, brand.id, themeName, type), $type: type }]
+                    }),
                   ),
                 ]
               }
@@ -197,7 +204,12 @@ export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
                       Object.entries(group ?? {}).map(([key, value]): [string, DtcgToken] => [
                         key,
                         {
-                          $value: toTypedDtcgValue(value, brand.id, themeName, groupName === 'color' ? 'color' : groupName === 'gradient' ? 'gradient' : 'dimension'),
+                          $value: toTypedDtcgValue(
+                            value,
+                            brand.id,
+                            themeName,
+                            groupName === 'color' ? 'color' : groupName === 'gradient' ? 'gradient' : 'dimension',
+                          ),
                           $type: groupName === 'color' ? 'color' : groupName === 'gradient' ? 'gradient' : 'dimension',
                           ...(groupName === 'gradient' && typeof value === 'object' && value !== null && 'extensions' in value
                             ? { $extensions: value.extensions as Record<string, unknown> }
@@ -273,8 +285,9 @@ const importDtcgBrands = (brandMap: Record<string, unknown>): ImportResult => {
           const colorTokens: ColorTokens = {}
           for (const [tokenKey, token] of Object.entries(section)) {
             if (tokenKey.startsWith('$')) continue
-              const rawValue = isRecord(token) ? token.$value : token
-              const gradientValue = isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
+            const rawValue = isRecord(token) ? token.$value : token
+            const gradientValue =
+              isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
                 ? {
                     stops: token.$value.filter(isRecord).map((stop) => ({
                       color: toLocalReference(stop.color, id, themeName) as string,
@@ -301,15 +314,16 @@ const importDtcgBrands = (brandMap: Record<string, unknown>): ImportResult => {
             for (const [tokenKey, token] of Object.entries(group)) {
               if (tokenKey.startsWith('$')) continue
               const rawValue = isRecord(token) ? token.$value : token
-              const gradientValue = isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
-                ? {
-                    stops: token.$value.filter(isRecord).map((stop) => ({
-                      color: toLocalReference(stop.color, id, themeName) as string,
-                      position: Number(stop.position ?? 0),
-                    })),
-                    extensions: isRecord(token.$extensions) ? token.$extensions : undefined,
-                  }
-                : rawValue
+              const gradientValue =
+                isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
+                  ? {
+                      stops: token.$value.filter(isRecord).map((stop) => ({
+                        color: toLocalReference(stop.color, id, themeName) as string,
+                        position: Number(stop.position ?? 0),
+                      })),
+                      extensions: isRecord(token.$extensions) ? token.$extensions : undefined,
+                    }
+                  : rawValue
               if (rawValue === undefined) continue
               groupTokens[tokenKey] = toLocalReference(normalizeImportedValue(gradientValue), id, themeName) as TokenValue
             }

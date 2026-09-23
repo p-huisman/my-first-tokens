@@ -1,3 +1,7 @@
+# Todo
+
+## Primitives
+
 ### 1. Spatial & Structural Primitives
 * **~~Spacing Scale~~:** Linear or exponential numeric values (usually based on a 4px or 8px grid) used to build semantic layout and component tokens.
   * *Examples:* `spacing-0`, `spacing-1`, `spacing-2` (representing `0px`, `4px`, `8px` or `0rem`, `0.25rem`, `0.5rem`).
@@ -29,3 +33,14 @@
   * *Examples:* `z-index-hide` (-1), `z-index-base` (0), `z-index-dropdown` (1000), `z-index-modal` (2000).
 * **Shadow Steps:** Raw coordinates, blurs, and spread properties for drop shadows. 
   * *Examples:* `shadow-100`, `shadow-200`, `shadow-300` (which later map semantically to things like `shadow-card-hover` or `shadow-modal`).
+
+## Semantic
+
+Semantic token name should use [Category] - [Role] - [Modifier] pattern
+Semantic value should map primitive tokens
+
+## Component
+
+Component token name should use [Component] - [Element] - [Modifier] pattern
+Component token value should map Semantic tokens
+

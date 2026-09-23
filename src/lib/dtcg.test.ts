@@ -108,6 +108,26 @@ describe('toDesignTokensFormat', () => {
     expect(exported.$description).toBe('Exported Tokens')
   })
 
+  it('round-trips semantic aliases to non-color primitive groups', () => {
+    const brands: Brand[] = [
+      {
+        id: 'demo',
+        name: 'Demo',
+        themes: {
+          light: {
+            primitives: { spatial: { spacing2: '8px' }, structural: { radiusSmall: '4px' } },
+            semantic: { 'layout-gap-default': '{primitives.spatial.spacing2}', 'shape-radius-small': '{primitives.structural.radiusSmall}' },
+          },
+        },
+      },
+    ]
+    const exported = toDesignTokensFormat(brands)
+    const semantic = (exported.brands.demo as { light?: { semantic?: Record<string, { $value: unknown; $type: string }> } }).light?.semantic
+
+    expect(semantic?.['layout-gap-default']).toEqual({ $value: '{brands.demo.light.primitives.spatial.spacing2}', $type: 'dimension' })
+    expect(fromDesignTokensFormat(exported)?.brands[0]?.themes.light?.semantic).toEqual(brands[0]?.themes.light?.semantic)
+  })
+
   it('round-trips the shipped token file', () => {
     const imported = fromDesignTokensFormat(shippedTokens)
     const reimported = fromDesignTokensFormat(toDesignTokensFormat(imported!.brands))

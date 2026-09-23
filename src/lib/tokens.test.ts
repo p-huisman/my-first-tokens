@@ -3,7 +3,19 @@ import { buildCssVariables, buildThemeStyle, collectTokenIssues, referenceOption
 import type { ThemeTokens } from './types.js'
 
 const theme: ThemeTokens = {
-  primitives: { color: { white: '#FFFFFF', gray50: '#F8FAFC', broken: 'not-a-colour' } },
+  primitives: {
+    color: { white: '#FFFFFF', gray50: '#F8FAFC', broken: 'not-a-colour' },
+    spatial: { spacing2: '8px' },
+    structural: { radiusSmall: '4px' },
+    gradient: {
+      brandFade: {
+        stops: [
+          { color: '#FFFFFF', position: 0 },
+          { color: '#000000', position: 1 },
+        ],
+      },
+    },
+  },
   semantic: {
     'surface-page-default': '{primitives.color.gray50}',
     'content-text-default': '{primitives.color.missing}',
@@ -45,6 +57,9 @@ describe('referenceOptions', () => {
   it('offers primitives to semantic tokens and excludes the token itself', () => {
     const values = referenceOptions(theme, 'semantic', 'surface-page-default').map((option) => option.value)
     expect(values).toContain('primitives.color.white')
+    expect(values).toContain('primitives.spatial.spacing2')
+    expect(values).toContain('primitives.structural.radiusSmall')
+    expect(values).toContain('primitives.gradient.brandFade')
     expect(values).not.toContain('semantic.surface-page-default')
   })
 
@@ -56,7 +71,8 @@ describe('referenceOptions', () => {
 
   it('resolves a swatch colour per option', () => {
     const option = referenceOptions(theme, 'semantic', 'surface-page-default').find((candidate) => candidate.value === 'primitives.color.gray50')
-    expect(option?.color).toBe('#F8FAFC')
+    expect(option?.preview).toBe('#F8FAFC')
+    expect(option?.group).toBe('color')
   })
 })
 

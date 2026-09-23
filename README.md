@@ -127,3 +127,8 @@ included yet.
 
 `.github/workflows/ci.yml` runs `npm ci` followed by typecheck, lint, format check, tests and build on
 pushes to `main` and on every pull request.
+
+
+## Links
+
+[W3C token validator](https://design-token-validator-app.vercel.app/)

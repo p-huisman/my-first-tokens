@@ -93,6 +93,15 @@ export class TknColorPicker extends LitElement {
     this._emitInput()
   }
 
+  _handleHueInput(event: Event) {
+    if (parseColor(this.value) === null) {
+      this.saturation = 1
+      this.brightness = 1
+    }
+    this.hue = Number((event.target as HTMLInputElement).value)
+    this._emitInput()
+  }
+
   async _pickFromScreen() {
     const EyeDropperCtor = eyeDropperConstructor()
     if (EyeDropperCtor === undefined) return
@@ -173,23 +182,13 @@ export class TknColorPicker extends LitElement {
           <span class="preview" style=${`background:${this._formatValue()}`}></span>
           ${
             this._supportsEyeDropper()
-              ? html`<button class="eyedropper" type="button" aria-label="Pick color from screen" @click=${this._pickFromScreen}>⌕</button>`
+              ? html`<button class="eyedropper" type="button" aria-label="Pick color from screen" @click=${this._pickFromScreen}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-color-picker"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M11 7l6 6" /><path d="M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4" /></svg>
+                </button>`
               : nothing
           }
           <div class="sliders">
-            <input
-              class="hue"
-              name="hue"
-              type="range"
-              min="0"
-              max="359"
-              aria-label="Hue"
-              .value=${this.hue}
-              @input=${(event: Event) => {
-                this.hue = Number((event.target as HTMLInputElement).value)
-                this._emitInput()
-              }}
-            />
+            <input class="hue" name="hue" type="range" min="0" max="359" aria-label="Hue" .value=${this.hue} @input=${this._handleHueInput} />
             ${
               this.withAlpha
                 ? html`<input
@@ -287,6 +286,12 @@ export class TknColorPicker extends LitElement {
       color: #101828;
       font-size: 22px;
       cursor: pointer;
+    }
+    .eyedropper svg {
+      display: block;
+      width: 20px;
+      height: 20px;
+      margin: auto;
     }
     .sliders {
       display: grid;
