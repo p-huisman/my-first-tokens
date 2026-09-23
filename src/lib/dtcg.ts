@@ -1,24 +1,35 @@
 import { formatColor, isValidColorInput, parseColor, parseDtcgColor, toHex } from './color.js'
 import { isRecord } from './guards.js'
-import type { Brand, ColorTokens, DtcgColorValue, DtcgToken, DtcgTokenFile, SectionName, ThemeTokens, TokenValue } from './types.js'
+import type {
+  Brand,
+  ColorTokens,
+  DtcgColorValue,
+  DtcgDimensionValue,
+  DtcgToken,
+  DtcgTokenFile,
+  PrimitiveTokens,
+  SectionName,
+  ThemeTokens,
+  TokenValue,
+} from './types.js'
 
 /** Well-known semantic/component tokens and the reference they are expected to carry. */
 const SEMANTIC_DEFAULTS: Record<string, string> = {
-  'surface-page-default': 'primitives.gray50',
-  'surface-panel-elevated': 'primitives.white',
-  'content-text-default': 'primitives.gray950',
-  'content-text-muted': 'primitives.gray700',
-  'border-control-subtle': 'primitives.gray200',
-  'action-brand-primary': 'primitives.brandPrimary500',
-  'action-brand-secondary': 'primitives.brandSecondary500',
-  'content-action-default': 'primitives.white',
-  'feedback-status-success': 'primitives.green500',
+  'surface-page-default': 'primitives.color.gray50',
+  'surface-panel-elevated': 'primitives.color.white',
+  'content-text-default': 'primitives.color.gray950',
+  'content-text-muted': 'primitives.color.gray700',
+  'border-control-subtle': 'primitives.color.gray200',
+  'action-brand-primary': 'primitives.color.brandPrimary500',
+  'action-brand-secondary': 'primitives.color.brandSecondary500',
+  'content-action-default': 'primitives.color.white',
+  'feedback-status-success': 'primitives.color.green500',
 }
 
 const COMPONENT_DEFAULTS: Record<string, string> = {
   buttonPrimaryBg: 'semantic.action-brand-primary',
   buttonPrimaryText: 'semantic.content-action-default',
-  buttonSecondaryBg: 'primitives.gray50',
+  buttonSecondaryBg: 'primitives.color.gray50',
   buttonSecondaryText: 'semantic.content-text-default',
   cardBg: 'semantic.surface-panel-elevated',
   cardBorder: 'semantic.border-control-subtle',
@@ -44,15 +55,19 @@ export const defaultReferenceFor = (section: string, key: string): string | unde
 /** DTCG colour object → colour string; every other value passes through untouched. */
 export const normalizeImportedValue = (value: unknown): unknown => {
   const color = parseDtcgColor(value)
-  return color === null ? value : formatColor(color, { alpha: true })
+  if (color !== null) return formatColor(color, { alpha: true })
+  if (isRecord(value) && typeof value.value === 'number' && typeof value.unit === 'string') return `${value.value}${value.unit}`
+  return value
 }
 
 /** `{brands.brand.theme.primitives.x}` → `{primitives.x}` for the brand/theme being imported. */
 export const toLocalReference = (value: unknown, brandId: string, themeName: string): unknown => {
   if (typeof value !== 'string') return value
   const prefix = `{brands.${brandId}.${themeName}.`
-  if (!value.startsWith(prefix) || !value.endsWith('}')) return value
-  return `{${value.slice(prefix.length, -1)}}`
+  if (value.startsWith(prefix) && value.endsWith('}')) value = `{${value.slice(prefix.length, -1)}}`
+  if (typeof value === 'string' && value.startsWith('{primitives.') && !value.startsWith('{primitives.color.') && value.endsWith('}'))
+    return value.replace('{primitives.', '{primitives.color.')
+  return value
 }
 
 /** `{primitives.x}` → `{brands.brand.theme.primitives.x}`; absolute refs are left alone. */
@@ -87,6 +102,19 @@ export const toDtcgValue = (value: TokenValue, brandId: string, themeName: strin
   } satisfies DtcgColorValue
 }
 
+const toDimensionValue = (value: string): DtcgDimensionValue | null => {
+  const match = /^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(value.trim())
+  if (match === null) return null
+  return { value: Number(match[1]), unit: match[2] ?? 'px' }
+}
+
+const toTypedDtcgValue = (value: TokenValue, brandId: string, themeName: string, type: string): TokenValue => {
+  const reference = toAbsoluteReference(value, brandId, themeName)
+  if (typeof reference !== 'string' || reference.startsWith('{')) return reference
+  if (type === 'dimension') return toDimensionValue(reference) ?? reference
+  return toDtcgValue(reference, brandId, themeName)
+}
+
 /**
  * Rewrites bare colours on well-known semantic/component keys into the reference
  * the token is expected to carry. Unknown keys keep their literal colour — the
@@ -118,24 +146,43 @@ export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
     generatedAt: new Date().toISOString(),
   },
   brands: Object.fromEntries(
-    brands.map((brand): [string, Record<string, Record<string, Record<string, DtcgToken>>>] => [
+    brands.map((brand): [string, unknown] => [
       brand.id,
       Object.fromEntries(
-        Object.entries(brand.themes).map(([themeName, theme]): [string, Record<string, Record<string, DtcgToken>>] => [
+        Object.entries(brand.themes).map(([themeName, theme]): [string, unknown] => [
           themeName,
           Object.fromEntries(
-            Object.entries(theme).map(([sectionName, values]): [string, Record<string, DtcgToken>] => [
-              sectionName,
-              Object.fromEntries(
-                Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => [
-                  key,
-                  {
-                    $value: toDtcgValue(value, brand.id, themeName),
-                    $type: 'color',
-                  },
-                ]),
-              ),
-            ]),
+            Object.entries(theme).map(([sectionName, values]): [string, unknown] => {
+              if (sectionName !== 'primitives') {
+                return [
+                  sectionName,
+                  Object.fromEntries(
+                    Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => [
+                      key,
+                      { $value: toDtcgValue(value, brand.id, themeName), $type: 'color' },
+                    ]),
+                  ),
+                ]
+              }
+
+              return [
+                sectionName,
+                Object.fromEntries(
+                  Object.entries((values ?? {}) as PrimitiveTokens).map(([groupName, group]) => [
+                    groupName,
+                    Object.fromEntries(
+                      Object.entries(group ?? {}).map(([key, value]): [string, DtcgToken] => [
+                        key,
+                        {
+                          $value: toTypedDtcgValue(value, brand.id, themeName, groupName === 'color' ? 'color' : 'dimension'),
+                          $type: groupName === 'color' ? 'color' : 'dimension',
+                        },
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]
+            }),
           ),
         ]),
       ),
@@ -195,6 +242,38 @@ const importDtcgBrands = (brandMap: Record<string, unknown>): ImportResult => {
         }
 
         const tokens: ColorTokens = {}
+
+        if (sectionName === 'primitives' && Object.values(section).some((token) => isRecord(token) && ('$value' in token || '$type' in token))) {
+          const colorTokens: ColorTokens = {}
+          for (const [tokenKey, token] of Object.entries(section)) {
+            if (tokenKey.startsWith('$')) continue
+            const rawValue = isRecord(token) ? token.$value : token
+            if (rawValue === undefined) {
+              warnings.push(`Skipped "${id}.${themeName}.${sectionName}.${tokenKey}" — the token has no $value.`)
+              continue
+            }
+            colorTokens[tokenKey] = toLocalReference(normalizeImportedValue(rawValue), id, themeName) as TokenValue
+          }
+          sections[sectionName] = { color: colorTokens }
+          continue
+        }
+
+        if (sectionName === 'primitives') {
+          const groups: PrimitiveTokens = {}
+          for (const [groupName, group] of Object.entries(section)) {
+            if (!isRecord(group)) continue
+            const groupTokens: ColorTokens = {}
+            for (const [tokenKey, token] of Object.entries(group)) {
+              if (tokenKey.startsWith('$')) continue
+              const rawValue = isRecord(token) ? token.$value : token
+              if (rawValue === undefined) continue
+              groupTokens[tokenKey] = toLocalReference(normalizeImportedValue(rawValue), id, themeName) as TokenValue
+            }
+            groups[groupName] = groupTokens
+          }
+          sections[sectionName] = groups
+          continue
+        }
 
         for (const [tokenKey, token] of Object.entries(section)) {
           if (tokenKey.startsWith('$')) continue

@@ -9,24 +9,39 @@ export interface DtcgColorValue {
   hex: string
 }
 
+export interface DtcgDimensionValue {
+  value: number
+  unit: string
+}
+
 /**
  * A token value is either a colour string (`#RGB`, `#RRGGBB`, `#RRGGBBAA`,
  * `rgb()`, `rgba()`) or a `{section.key}` reference. Imported DTCG colour
  * objects are converted to a colour string on load, so the in-memory model
  * stays string based.
  */
-export type TokenValue = string | DtcgColorValue
+export type TokenValue = string | DtcgColorValue | DtcgDimensionValue
 
 export type ColorTokens = Record<string, TokenValue>
+export type PrimitiveGroup = Record<string, TokenValue>
 
-export interface ThemeTokens {
-  primitives?: ColorTokens
-  semantic?: ColorTokens
-  component?: ColorTokens
-  [section: string]: ColorTokens | undefined
+export interface PrimitiveTokens {
+  color?: ColorTokens
+  spatial?: PrimitiveGroup
+  structural?: PrimitiveGroup
+  [group: string]: PrimitiveGroup | undefined
 }
 
-export type ThemeTokensWithPrimitives = ThemeTokens & { primitives: ColorTokens }
+export type PrimitiveGroupName = 'color' | 'spatial' | 'structural'
+
+export interface ThemeTokens {
+  primitives?: PrimitiveTokens
+  semantic?: ColorTokens
+  component?: ColorTokens
+  [section: string]: ColorTokens | PrimitiveTokens | undefined
+}
+
+export type ThemeTokensWithPrimitives = ThemeTokens & { primitives: PrimitiveTokens }
 
 export interface Brand {
   id: string
@@ -50,7 +65,7 @@ export interface DtcgToken {
 export interface DtcgTokenFile {
   $description?: string
   $metadata?: { generatedAt: string }
-  brands: Record<string, Record<string, Record<string, Record<string, DtcgToken>>>>
+  brands: Record<string, unknown>
 }
 
 export interface PrimitiveColorSaveDetail {
@@ -64,9 +79,15 @@ export interface ScaleSaveDetail {
   values: string[]
 }
 
+export interface SpatialSaveDetail {
+  tokenName: string
+  value: string
+}
+
 export interface TokenChangeDetail {
   section: SectionName
   key: string
+  group?: PrimitiveGroupName
   value: string
 }
 

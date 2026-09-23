@@ -31,12 +31,12 @@ describe('seedBrand', () => {
     })
 
     expect(brand.id).toBe('north-star')
-    expect(brand.themes.light?.primitives?.brandPrimary500).toBe('#111111')
-    expect(brand.themes.light?.primitives?.brandSecondary500).toBe('#222222')
-    expect(brand.themes.light?.primitives?.gray50).toBe('#F0F0F0')
-    expect(brand.themes.light?.primitives?.gray950).toBe('#0A0A0A')
-    expect(brand.themes.dark?.primitives?.gray50).toBe('#010101')
-    expect(brand.themes.dark?.primitives?.gray950).toBe('#FEFEFE')
+    expect(brand.themes.light?.primitives?.color?.brandPrimary500).toBe('#111111')
+    expect(brand.themes.light?.primitives?.color?.brandSecondary500).toBe('#222222')
+    expect(brand.themes.light?.primitives?.color?.gray50).toBe('#F0F0F0')
+    expect(brand.themes.light?.primitives?.color?.gray950).toBe('#0A0A0A')
+    expect(brand.themes.dark?.primitives?.color?.gray50).toBe('#010101')
+    expect(brand.themes.dark?.primitives?.color?.gray950).toBe('#FEFEFE')
   })
 })
 
@@ -49,8 +49,8 @@ describe('default brands', () => {
 
   it('are cloned on every call', () => {
     const first = createDefaultBrands()
-    first[0]!.themes.light!.primitives!.white = '#000000'
-    expect(createDefaultBrands()[0]?.themes.light?.primitives?.white).toBe('#FFFFFF')
+    first[0]!.themes.light!.primitives!.color!.white = '#000000'
+    expect(createDefaultBrands()[0]?.themes.light?.primitives?.color?.white).toBe('#FFFFFF')
   })
 
   it('resolve the chrome variables in both themes', () => {
@@ -64,7 +64,7 @@ describe('default brands', () => {
 
   it('use the documented new-brand palette', () => {
     const brand = seedBrand('Demo', NEW_BRAND_PALETTE)
-    expect(brand.themes.light?.primitives?.gray50).toBe('#F8FAFC')
-    expect(brand.themes.dark?.primitives?.gray50).toBe('#0F172A')
+    expect(brand.themes.light?.primitives?.color?.gray50).toBe('#F8FAFC')
+    expect(brand.themes.dark?.primitives?.color?.gray50).toBe('#0F172A')
   })
 })

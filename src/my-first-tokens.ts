@@ -5,9 +5,20 @@ import { fromDesignTokensFormat, normalizeBrand, toDesignTokensFormat } from './
 import { NEW_BRAND_PALETTE, createDefaultBrands, seedBrand, uniqueBrandId } from './lib/seed.js'
 import { buildCssVariables, buildThemeStyle, collectTokenIssues } from './lib/tokens.js'
 import { hasPrimitives } from './lib/guards.js'
-import type { Brand, PrimitiveColorSaveDetail, ScaleSaveDetail, ThemeTokens, TokenChangeDetail, TokenIssue } from './lib/types.js'
+import type {
+  Brand,
+  ColorTokens,
+  PrimitiveColorSaveDetail,
+  PrimitiveGroupName,
+  ScaleSaveDetail,
+  SpatialSaveDetail,
+  ThemeTokens,
+  TokenChangeDetail,
+  TokenIssue,
+} from './lib/types.js'
 import './components/primitive-color-dialog.js'
 import './components/primitive-scale-dialog.js'
+import './components/primitive-spatial-dialog.js'
 import './components/token-row.js'
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
@@ -17,6 +28,7 @@ export class TokenSyncApp extends LitElement {
     brands: { type: Array },
     selectedBrand: { type: String },
     selectedTheme: { type: String },
+    primitiveFilter: { type: String },
     cssOutput: { type: String },
     importWarnings: { type: Array },
     importIssues: { type: Array },
@@ -24,6 +36,8 @@ export class TokenSyncApp extends LitElement {
     primitiveDialogError: { type: String },
     scaleDialogOpen: { type: Boolean },
     scaleDialogError: { type: String },
+    spatialDialogOpen: { type: Boolean },
+    spatialDialogError: { type: String },
     fileLoadError: { type: String },
     addingBrand: { type: Boolean },
     newBrandName: { type: String },
@@ -33,6 +47,7 @@ export class TokenSyncApp extends LitElement {
   declare brands: Brand[]
   declare selectedBrand: string
   declare selectedTheme: string
+  declare primitiveFilter: PrimitiveGroupName
   declare cssOutput: string
   declare importWarnings: string[]
   declare importIssues: TokenIssue[]
@@ -40,6 +55,8 @@ export class TokenSyncApp extends LitElement {
   declare primitiveDialogError: string
   declare scaleDialogOpen: boolean
   declare scaleDialogError: string
+  declare spatialDialogOpen: boolean
+  declare spatialDialogError: string
   declare fileLoadError: string
   declare addingBrand: boolean
   declare newBrandName: string
@@ -50,6 +67,7 @@ export class TokenSyncApp extends LitElement {
     this.brands = createDefaultBrands()
     this.selectedBrand = this.brands[0]?.id ?? ''
     this.selectedTheme = 'light'
+    this.primitiveFilter = 'color'
     this.cssOutput = ''
     this.importWarnings = []
     this.importIssues = []
@@ -57,6 +75,8 @@ export class TokenSyncApp extends LitElement {
     this.primitiveDialogError = ''
     this.scaleDialogOpen = false
     this.scaleDialogError = ''
+    this.spatialDialogOpen = false
+    this.spatialDialogError = ''
     this.fileLoadError = ''
     this.addingBrand = false
     this.newBrandName = ''
@@ -155,17 +175,23 @@ export class TokenSyncApp extends LitElement {
 
   /** A colour edited in a primitive token row. */
   _handleTokenChange(event: CustomEvent<TokenChangeDetail>) {
-    const { section, key, value } = event.detail
+    const { section, group, key, value } = event.detail
     const theme = this.currentThemeTokens
-    const tokens = theme[section] ?? (theme[section] = {})
-    tokens[key] = value
+    if (section === 'primitives') {
+      const primitives = theme.primitives ?? (theme.primitives = {})
+      const tokens = primitives[group ?? this.primitiveFilter] ?? (primitives[group ?? this.primitiveFilter] = {})
+      tokens[key] = value
+    } else {
+      const tokens = (theme[section] as ColorTokens | undefined) ?? ((theme[section] = {}) as ColorTokens)
+      tokens[key] = value
+    }
     this.requestUpdate()
   }
 
   /** A reference picked in a semantic/component token row. */
   _handleTokenLink(event: CustomEvent<TokenChangeDetail>) {
     const { section, key, value } = event.detail
-    const tokens = this.currentThemeTokens[section]
+    const tokens = this.currentThemeTokens[section] as ColorTokens | undefined
     if (tokens === undefined) return
 
     tokens[key] = value.startsWith('#') ? value : `{${value}}`
@@ -188,13 +214,14 @@ export class TokenSyncApp extends LitElement {
     if (!themes.length) return
 
     const { tokenName: key, colorValue: value } = event.detail
-    if (themes.some((theme) => Object.hasOwn(theme.primitives, key))) {
+    if (themes.some((theme) => Object.hasOwn(theme.primitives.color ?? {}, key))) {
       this.primitiveDialogError = `A primitive named ${key} already exists.`
       return
     }
 
     themes.forEach((theme) => {
-      theme.primitives[key] = value
+      const colorTokens = theme.primitives.color ?? (theme.primitives.color = {})
+      colorTokens[key] = value
     })
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
@@ -218,7 +245,7 @@ export class TokenSyncApp extends LitElement {
 
     const { prefix, steps, values } = event.detail
     const names = steps.map((step) => `${prefix}${step}`)
-    const duplicate = names.find((name) => themes.some((theme) => Object.hasOwn(theme.primitives, name)))
+    const duplicate = names.find((name) => themes.some((theme) => Object.hasOwn(theme.primitives.color ?? {}, name)))
     if (duplicate) {
       this.scaleDialogError = `A primitive named ${duplicate} already exists.`
       return
@@ -226,11 +253,43 @@ export class TokenSyncApp extends LitElement {
 
     themes.forEach((theme) => {
       names.forEach((name, index) => {
-        theme.primitives[name] = values[index] ?? ''
+        const colorTokens = theme.primitives.color ?? (theme.primitives.color = {})
+        colorTokens[name] = values[index] ?? ''
       })
     })
     this.scaleDialogOpen = false
     this.scaleDialogError = ''
+    this.requestUpdate()
+  }
+
+  _openSpatialDialog() {
+    this.spatialDialogError = ''
+    this.spatialDialogOpen = true
+  }
+
+  _closeSpatialDialog() {
+    this.spatialDialogOpen = false
+    this.spatialDialogError = ''
+  }
+
+  _saveSpatial(event: CustomEvent<SpatialSaveDetail>) {
+    const brand = this.currentBrand
+    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
+    if (!themes.length) return
+
+    const { tokenName: key, value } = event.detail
+    const group = this.primitiveFilter === 'structural' ? 'structural' : 'spatial'
+    if (themes.some((theme) => Object.hasOwn(theme.primitives[group] ?? {}, key))) {
+      this.spatialDialogError = `A primitive named ${key} already exists.`
+      return
+    }
+
+    themes.forEach((theme) => {
+      const dimensionTokens = theme.primitives[group] ?? (theme.primitives[group] = {})
+      dimensionTokens[key] = value
+    })
+    this.spatialDialogOpen = false
+    this.spatialDialogError = ''
     this.requestUpdate()
   }
 
@@ -306,6 +365,59 @@ export class TokenSyncApp extends LitElement {
     `
   }
 
+  private _renderPrimitiveSection(theme: ThemeTokens) {
+    const tokens = theme.primitives?.[this.primitiveFilter] ?? {}
+    return html`
+      <article class="token-section">
+        <div class="section-header">
+          <div class="section-title">
+            <h2>primitives</h2>
+            <span>${Object.keys(tokens).length} ${this.primitiveFilter} tokens</span>
+          </div>
+          <div class="section-actions">
+            <label class="primitive-filter">
+              <span>Primitive type</span>
+              <select
+                name="primitive-filter"
+                .value=${this.primitiveFilter}
+                @change=${(event: Event) => {
+                  this.primitiveFilter = (event.target as HTMLSelectElement).value as PrimitiveGroupName
+                }}
+              >
+                <option value="color">Color</option>
+                <option value="spatial">Spatial</option>
+                <option value="structural">Structural</option>
+              </select>
+            </label>
+            ${
+              this.primitiveFilter === 'color'
+                ? html`
+                    <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
+                    <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
+                  `
+                : html`<button class="section-action" @click=${this._openSpatialDialog}>+ Add ${this.primitiveFilter}</button>`
+            }
+          </div>
+        </div>
+        <div class="token-grid">
+          ${repeat(
+            Object.keys(tokens),
+            (key) => key,
+            (key) => html`
+              <tkn-token-row
+                token-key=${key}
+                section="primitives"
+                primitive-group=${this.primitiveFilter}
+                .theme=${theme}
+                @token-change=${this._handleTokenChange}
+              ></tkn-token-row>
+            `,
+          )}
+        </div>
+      </article>
+    `
+  }
+
   render() {
     const brand = this.currentBrand
     const theme = this.currentThemeTokens
@@ -324,6 +436,12 @@ export class TokenSyncApp extends LitElement {
         @cancel=${this._closeScaleDialog}
         @save=${this._saveScale}
       ></primitive-scale-dialog>
+      <primitive-spatial-dialog
+        .open=${this.spatialDialogOpen}
+        .error=${this.spatialDialogError}
+        @cancel=${this._closeSpatialDialog}
+        @save=${this._saveSpatial}
+      ></primitive-spatial-dialog>
 
       <div class="app-shell" style=${buildThemeStyle(theme)}>
         <header class="topbar">
@@ -394,22 +512,15 @@ export class TokenSyncApp extends LitElement {
 
         <main class="layout">
           <section class="token-panel">
+            ${this._renderPrimitiveSection(theme)}
             ${repeat(
-              Object.entries(theme),
+              Object.entries(theme).filter(([section]) => section !== 'primitives'),
               ([section]) => section,
               ([section, values]) => html`
                 <article class="token-section">
                   <div class="section-header">
                     <h2>${section}</h2>
                     <span>${Object.keys(values ?? {}).length} tokens</span>
-                    ${
-                      section === 'primitives'
-                        ? html`
-                            <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
-                            <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
-                          `
-                        : nothing
-                    }
                   </div>
 
                   <div class="token-grid">
@@ -678,6 +789,10 @@ export class TokenSyncApp extends LitElement {
       margin-left: auto;
       padding: 7px 10px;
       border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .primitive-filter select {
       font-size: 12px;
     }
 

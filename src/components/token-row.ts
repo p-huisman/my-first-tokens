@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { toCssColor } from '../lib/color.js'
 import { referenceOptions, resolveToken, toKebab } from '../lib/tokens.js'
-import type { ColorValueChangeDetail, ReferenceOption, SectionName, ThemeTokens, TokenChangeDetail, TokenResolution } from '../lib/types.js'
+import type { ColorValueChangeDetail, PrimitiveGroupName, ReferenceOption, SectionName, ThemeTokens, TokenChangeDetail, TokenResolution } from '../lib/types.js'
 import './color-input.js'
 
 const issueMessages: Record<string, string> = {
@@ -19,17 +19,20 @@ export class TknTokenRow extends LitElement {
   static properties = {
     tokenKey: { type: String, attribute: 'token-key' },
     section: { type: String },
+    primitiveGroup: { type: String, attribute: 'primitive-group' },
     theme: { type: Object },
   }
 
   declare tokenKey: string
   declare section: SectionName
+  declare primitiveGroup: PrimitiveGroupName
   declare theme: ThemeTokens
 
   constructor() {
     super()
     this.tokenKey = ''
     this.section = 'primitives'
+    this.primitiveGroup = 'color'
     this.theme = {}
   }
 
@@ -52,7 +55,7 @@ export class TknTokenRow extends LitElement {
   private _emitChange(value: string) {
     this.dispatchEvent(
       new CustomEvent<TokenChangeDetail>('token-change', {
-        detail: { section: this.section, key: this.tokenKey, value },
+        detail: { section: this.section, group: this.section === 'primitives' ? this.primitiveGroup : undefined, key: this.tokenKey, value },
         bubbles: true,
         composed: true,
       }),
@@ -75,6 +78,12 @@ export class TknTokenRow extends LitElement {
     this._emitChange(event.detail.value)
   }
 
+  private _handleSpatialChange(event: Event) {
+    const input = event.target as HTMLInputElement
+    const unit = this.renderRoot.querySelector<HTMLSelectElement>('select[name="spatial-unit"]')?.value ?? 'px'
+    this._emitChange(`${input.value}${unit}`)
+  }
+
   private _handleOptionClick(event: Event, value: string) {
     this._emitLink(value)
     const details = (event.currentTarget as HTMLElement | null)?.closest('details')
@@ -82,7 +91,7 @@ export class TknTokenRow extends LitElement {
   }
 
   render() {
-    const value = this.theme?.[this.section]?.[this.tokenKey]
+    const value = this.section === 'primitives' ? this.theme.primitives?.[this.primitiveGroup]?.[this.tokenKey] : this.theme?.[this.section]?.[this.tokenKey]
     const resolution = resolveToken(value, this.theme)
     const options: ReferenceOption[] = this.section === 'primitives' ? [] : referenceOptions(this.theme, this.section, this.tokenKey)
     const selectedValue = this._referenceOf(value) ?? options[0]?.value ?? ''
@@ -100,7 +109,7 @@ export class TknTokenRow extends LitElement {
         </span>
 
         ${
-          this.section === 'primitives'
+          this.section === 'primitives' && this.primitiveGroup === 'color'
             ? html`
                 <tkn-color-input
                   name=${`${this.section}-${this.tokenKey}`}
@@ -108,37 +117,59 @@ export class TknTokenRow extends LitElement {
                   @value-change=${this._handleColorChange}
                 ></tkn-color-input>
               `
-            : html`
-                <div class="token-link-editor">
-                  <details class="token-menu">
-                    <summary>
-                      <span class="token-choice">
-                        <span
-                          class="token-swatch"
-                          aria-hidden="true"
-                          style=${`background:${selected?.color ?? toCssColor(resolution.value) ?? '#000000'}`}
-                        ></span>
-                        <span>${selected?.label ?? selectedValue}</span>
-                      </span>
-                    </summary>
-                    <div class="token-options">
-                      ${options.map(
-                        (option) => html`
-                          <button
-                            type="button"
-                            class=${option.value === selectedValue ? 'token-option selected' : 'token-option'}
-                            aria-current=${option.value === selectedValue ? 'true' : nothing}
-                            @click=${(event: Event) => this._handleOptionClick(event, option.value)}
-                          >
-                            <span class="token-swatch" aria-hidden="true" style=${`background:${option.color}`}></span>
-                            <span>${option.label}</span>
-                          </button>
-                        `,
-                      )}
-                    </div>
-                  </details>
-                </div>
-              `
+            : this.section === 'primitives'
+              ? html`
+                  <div class="spatial-editor">
+                    <input
+                      name="spatial-value"
+                      type="number"
+                      step="any"
+                      .value=${/^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(String(value ?? ''))?.[1] ?? ''}
+                      @input=${this._handleSpatialChange}
+                    />
+                    <select
+                      name="spatial-unit"
+                      .value=${/^(-?(?:\d+\.?\d*|\.\d+))(px|rem|em|%)$/.exec(String(value ?? ''))?.[2] ?? 'px'}
+                      @change=${this._handleSpatialChange}
+                    >
+                      <option value="px">px</option>
+                      <option value="rem">rem</option>
+                      <option value="em">em</option>
+                      <option value="%">%</option>
+                    </select>
+                  </div>
+                `
+              : html`
+                  <div class="token-link-editor">
+                    <details class="token-menu">
+                      <summary>
+                        <span class="token-choice">
+                          <span
+                            class="token-swatch"
+                            aria-hidden="true"
+                            style=${`background:${selected?.color ?? toCssColor(resolution.value) ?? '#000000'}`}
+                          ></span>
+                          <span class="token-text">${selected?.label ?? selectedValue}</span>
+                        </span>
+                      </summary>
+                      <div class="token-options">
+                        ${options.map(
+                          (option) => html`
+                            <button
+                              type="button"
+                              class=${option.value === selectedValue ? 'token-option selected' : 'token-option'}
+                              aria-current=${option.value === selectedValue ? 'true' : nothing}
+                              @click=${(event: Event) => this._handleOptionClick(event, option.value)}
+                            >
+                              <span class="token-swatch" aria-hidden="true" style=${`background:${option.color}`}></span>
+                              <span>${option.label}</span>
+                            </button>
+                          `,
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                `
         }
       </div>
     `
@@ -180,6 +211,24 @@ export class TknTokenRow extends LitElement {
       gap: 10px;
     }
 
+    .spatial-editor {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    .spatial-editor input,
+    .spatial-editor select {
+      min-height: 42px;
+      min-width: 0;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.04);
+      color: var(--text);
+      font: inherit;
+    }
+
     .token-menu {
       position: relative;
     }
@@ -214,6 +263,10 @@ export class TknTokenRow extends LitElement {
       flex: 0 0 14px;
       border: 1px solid rgba(15, 23, 42, 0.2);
       border-radius: 4px;
+    }
+
+    .token-text {
+      word-wrap: anywhere;
     }
 
     .token-options {

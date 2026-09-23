@@ -3,10 +3,10 @@ import { buildCssVariables, buildThemeStyle, collectTokenIssues, referenceOption
 import type { ThemeTokens } from './types.js'
 
 const theme: ThemeTokens = {
-  primitives: { white: '#FFFFFF', gray50: '#F8FAFC', broken: 'not-a-colour' },
+  primitives: { color: { white: '#FFFFFF', gray50: '#F8FAFC', broken: 'not-a-colour' } },
   semantic: {
-    'surface-page-default': '{primitives.gray50}',
-    'content-text-default': '{primitives.missing}',
+    'surface-page-default': '{primitives.color.gray50}',
+    'content-text-default': '{primitives.color.missing}',
     colorLoop: '{semantic.colorLoopBack}',
     colorLoopBack: '{semantic.colorLoop}',
   },
@@ -16,7 +16,7 @@ const theme: ThemeTokens = {
 describe('resolveToken', () => {
   it('resolves colours and chained references', () => {
     expect(resolveToken('#ABC', theme)).toEqual({ value: '#AABBCC' })
-    expect(resolveToken('{primitives.gray50}', theme)).toEqual({ value: '#F8FAFC' })
+    expect(resolveToken('{primitives.color.gray50}', theme)).toEqual({ value: '#F8FAFC' })
     expect(resolveToken('{component.cardBg}', theme)).toEqual({ value: '#F8FAFC' })
   })
 
@@ -25,7 +25,7 @@ describe('resolveToken', () => {
   })
 
   it('reports dangling references instead of silently returning black', () => {
-    expect(resolveToken('{primitives.missing}', theme)).toEqual({ value: '#000000', error: 'dangling', reference: 'primitives.missing' })
+    expect(resolveToken('{primitives.color.missing}', theme)).toEqual({ value: '#000000', error: 'dangling', reference: 'primitives.color.missing' })
   })
 
   it('regression: cyclic references terminate with a diagnostic', () => {
@@ -44,32 +44,32 @@ describe('resolveToken', () => {
 describe('referenceOptions', () => {
   it('offers primitives to semantic tokens and excludes the token itself', () => {
     const values = referenceOptions(theme, 'semantic', 'surface-page-default').map((option) => option.value)
-    expect(values).toContain('primitives.white')
+    expect(values).toContain('primitives.color.white')
     expect(values).not.toContain('semantic.surface-page-default')
   })
 
   it('offers primitives and semantic tokens to component tokens', () => {
     const values = referenceOptions(theme, 'component', 'cardBg').map((option) => option.value)
-    expect(values).toContain('primitives.white')
+    expect(values).toContain('primitives.color.white')
     expect(values).toContain('semantic.surface-page-default')
   })
 
   it('resolves a swatch colour per option', () => {
-    const option = referenceOptions(theme, 'semantic', 'surface-page-default').find((candidate) => candidate.value === 'primitives.gray50')
+    const option = referenceOptions(theme, 'semantic', 'surface-page-default').find((candidate) => candidate.value === 'primitives.color.gray50')
     expect(option?.color).toBe('#F8FAFC')
   })
 })
 
 describe('buildCssVariables', () => {
   it('emits kebab-cased custom properties in token order', () => {
-    expect(buildCssVariables({ primitives: { brandPrimary500: '#2563EB' } })).toBe(':root {\n  --primitives-brand-primary500: #2563EB;\n}\n')
+    expect(buildCssVariables({ primitives: { color: { brandPrimary500: '#2563EB' } } })).toBe(':root {\n  --primitives-color-brand-primary500: #2563EB;\n}\n')
   })
 
   it('resolves references and falls back to black only for broken values', () => {
     const css = buildCssVariables(theme)
     expect(css).toContain('--semantic-surface-page-default: #F8FAFC;')
     expect(css).toContain('--component-card-bg: #F8FAFC;')
-    expect(css).toContain('--primitives-broken: #000000;')
+    expect(css).toContain('--primitives-color-broken: #000000;')
   })
 })
 
@@ -83,7 +83,7 @@ describe('buildThemeStyle', () => {
   })
 
   it('is empty when there is no semantic section', () => {
-    expect(buildThemeStyle({ primitives: { white: '#FFFFFF' } })).toBe('')
+    expect(buildThemeStyle({ primitives: { color: { white: '#FFFFFF' } } })).toBe('')
   })
 })
 
@@ -92,7 +92,7 @@ describe('collectTokenIssues', () => {
     const issues = collectTokenIssues([{ id: 'demo', name: 'Demo', themes: { light: theme } }])
     expect(issues).toHaveLength(4)
     expect(issues.map((issue) => issue.error).toSorted()).toEqual(['cycle', 'cycle', 'dangling', 'invalid'])
-    expect(issues.find((issue) => issue.key === 'content-text-default')?.reference).toBe('primitives.missing')
+    expect(issues.find((issue) => issue.key === 'content-text-default')?.reference).toBe('primitives.color.missing')
   })
 })
 
