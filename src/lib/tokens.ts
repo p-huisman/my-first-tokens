@@ -107,12 +107,12 @@ export const buildCssVariables = (theme: ThemeTokens): string => {
 }
 
 const THEME_STYLE_TOKENS: Record<string, readonly [SectionName, string]> = {
-  '--page-bg': ['semantic', 'colorBgCanvas'],
-  '--panel-bg': ['semantic', 'colorBgElevated'],
-  '--text': ['semantic', 'colorTextStrong'],
-  '--muted': ['semantic', 'colorTextMuted'],
-  '--border': ['semantic', 'colorBorderSubtle'],
-  '--primary': ['semantic', 'colorBrandPrimary'],
+  '--page-bg': ['semantic', 'surface-page-default'],
+  '--panel-bg': ['semantic', 'surface-panel-elevated'],
+  '--text': ['semantic', 'content-text-default'],
+  '--muted': ['semantic', 'content-text-muted'],
+  '--border': ['semantic', 'border-control-subtle'],
+  '--primary': ['semantic', 'action-brand-primary'],
   '--surface': ['component', 'cardBg'],
 }
 

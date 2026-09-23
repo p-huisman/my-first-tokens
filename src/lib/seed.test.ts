@@ -56,7 +56,7 @@ describe('default brands', () => {
   it('resolve the chrome variables in both themes', () => {
     for (const brand of createDefaultBrands()) {
       for (const theme of Object.values(brand.themes)) {
-        expect(resolveTokenValue(theme?.semantic?.colorBgCanvas, theme ?? {})).not.toBe('#000000')
+        expect(resolveTokenValue(theme?.semantic?.['surface-page-default'], theme ?? {})).not.toBe('#000000')
         expect(resolveTokenValue(theme?.component?.cardBg, theme ?? {})).not.toBe('#000000')
       }
     }

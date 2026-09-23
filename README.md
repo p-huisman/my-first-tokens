@@ -60,9 +60,13 @@ data.
 
 - **Brand** → **theme** (`light`, `dark`, or any theme name found in the file) → **section**
   (`primitives`, `semantic`, `component`, or an extra section in an imported file) → **token**.
+- Semantic tokens use the purpose-first **Category/Role/Modifier** pattern in flat kebab-case names:
+  `surface-page-default`, `surface-panel-elevated`, `content-text-muted`,
+  `action-brand-primary`, and `feedback-status-success`. Names describe what a token is for;
+  primitive names such as `gray50` describe the implementation value.
 - A token value is either a colour string (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb()`,
   `rgba()`) or a reference such as `{primitives.gray50}`.
-- References may chain (`component.cardBg` → `semantic.colorBgElevated` → `primitives.white`).
+- References may chain (`component.cardBg` → `semantic.surface-panel-elevated` → `primitives.white`).
   Resolution is iterative with a visited set and a depth cap, so cyclic or dangling references are
   reported instead of hanging, overflowing the stack, or silently turning black. Unresolved tokens get
   a ⚠ badge in the editor and are summarised in the notes banner.

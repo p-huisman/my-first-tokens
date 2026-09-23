@@ -4,25 +4,25 @@ import type { Brand, ColorTokens, DtcgColorValue, DtcgToken, DtcgTokenFile, Sect
 
 /** Well-known semantic/component tokens and the reference they are expected to carry. */
 const SEMANTIC_DEFAULTS: Record<string, string> = {
-  colorBgCanvas: 'primitives.gray50',
-  colorBgElevated: 'primitives.white',
-  colorTextStrong: 'primitives.gray950',
-  colorTextMuted: 'primitives.gray700',
-  colorBorderSubtle: 'primitives.gray200',
-  colorBrandPrimary: 'primitives.brandPrimary500',
-  colorBrandSecondary: 'primitives.brandSecondary500',
-  colorActionText: 'primitives.white',
-  colorSuccess: 'primitives.green500',
+  'surface-page-default': 'primitives.gray50',
+  'surface-panel-elevated': 'primitives.white',
+  'content-text-default': 'primitives.gray950',
+  'content-text-muted': 'primitives.gray700',
+  'border-control-subtle': 'primitives.gray200',
+  'action-brand-primary': 'primitives.brandPrimary500',
+  'action-brand-secondary': 'primitives.brandSecondary500',
+  'content-action-default': 'primitives.white',
+  'feedback-status-success': 'primitives.green500',
 }
 
 const COMPONENT_DEFAULTS: Record<string, string> = {
-  buttonPrimaryBg: 'semantic.colorBrandPrimary',
-  buttonPrimaryText: 'semantic.colorActionText',
+  buttonPrimaryBg: 'semantic.action-brand-primary',
+  buttonPrimaryText: 'semantic.content-action-default',
   buttonSecondaryBg: 'primitives.gray50',
-  buttonSecondaryText: 'semantic.colorTextStrong',
-  cardBg: 'semantic.colorBgElevated',
-  cardBorder: 'semantic.colorBorderSubtle',
-  focusRing: 'semantic.colorBrandPrimary',
+  buttonSecondaryText: 'semantic.content-text-default',
+  cardBg: 'semantic.surface-panel-elevated',
+  cardBorder: 'semantic.border-control-subtle',
+  focusRing: 'semantic.action-brand-primary',
 }
 
 /** The default token set, shared by the seed data and the importer. */

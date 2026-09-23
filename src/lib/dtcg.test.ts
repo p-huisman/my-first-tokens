@@ -14,7 +14,7 @@ describe('fromDesignTokensFormat', () => {
     expect(imported?.warnings).toEqual([])
     expect(imported?.brands.map((brand) => brand.id)).toEqual(['northstar', 'sunset'])
     expect(imported?.brands[0]?.themes.light?.primitives?.white).toBe('#FFFFFF')
-    expect(imported?.brands[0]?.themes.light?.semantic?.colorBgCanvas).toBe('{primitives.gray50}')
+    expect(imported?.brands[0]?.themes.light?.semantic?.['surface-page-default']).toBe('{primitives.gray50}')
   })
 
   it('imports both fixture files', () => {
@@ -73,11 +73,11 @@ describe('fromDesignTokensFormat', () => {
 describe('toDesignTokensFormat', () => {
   it('exports DTCG colour objects and absolute references', () => {
     const brands: Brand[] = [
-      { id: 'demo', name: 'Demo', themes: { light: { primitives: { white: '#FFFFFF' }, semantic: { colorBgCanvas: '{primitives.white}' } } } },
+      { id: 'demo', name: 'Demo', themes: { light: { primitives: { white: '#FFFFFF' }, semantic: { 'surface-page-default': '{primitives.white}' } } } },
     ]
     const exported = toDesignTokensFormat(brands)
     expect(exported.brands.demo?.light?.primitives?.white?.$value).toEqual({ colorSpace: 'srgb', components: [1, 1, 1], alpha: 1, hex: '#ffffff' })
-    expect(exported.brands.demo?.light?.semantic?.colorBgCanvas?.$value).toBe('{brands.demo.light.primitives.white}')
+    expect(exported.brands.demo?.light?.semantic?.['surface-page-default']?.$value).toBe('{brands.demo.light.primitives.white}')
     expect(exported.$description).toBe('Exported Tokens')
   })
 
@@ -101,11 +101,11 @@ describe('normalizeBrand', () => {
     const brand: Brand = {
       id: 'b',
       name: 'B',
-      themes: { light: { semantic: { colorBgCanvas: '#F8FAFC' }, component: { cardBg: '#FFFFFF', customCard: '#FFFFFF' } } },
+      themes: { light: { semantic: { 'surface-page-default': '#F8FAFC' }, component: { cardBg: '#FFFFFF', customCard: '#FFFFFF' } } },
     }
     normalizeBrand(brand)
-    expect(brand.themes.light?.semantic?.colorBgCanvas).toBe('{primitives.gray50}')
-    expect(brand.themes.light?.component?.cardBg).toBe('{semantic.colorBgElevated}')
+    expect(brand.themes.light?.semantic?.['surface-page-default']).toBe('{primitives.gray50}')
+    expect(brand.themes.light?.component?.cardBg).toBe('{semantic.surface-panel-elevated}')
   })
 
   it('regression: keeps literal colours on unknown keys', () => {
@@ -117,8 +117,8 @@ describe('normalizeBrand', () => {
 
 describe('defaultReferenceFor', () => {
   it('only knows the documented default keys', () => {
-    expect(defaultReferenceFor('semantic', 'colorBgCanvas')).toBe('primitives.gray50')
-    expect(defaultReferenceFor('component', 'focusRing')).toBe('semantic.colorBrandPrimary')
+    expect(defaultReferenceFor('semantic', 'surface-page-default')).toBe('primitives.gray50')
+    expect(defaultReferenceFor('component', 'focusRing')).toBe('semantic.action-brand-primary')
     expect(defaultReferenceFor('semantic', 'somethingElse')).toBeUndefined()
     expect(defaultReferenceFor('primitives', 'white')).toBeUndefined()
   })

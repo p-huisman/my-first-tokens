@@ -5,12 +5,12 @@ import type { ThemeTokens } from './types.js'
 const theme: ThemeTokens = {
   primitives: { white: '#FFFFFF', gray50: '#F8FAFC', broken: 'not-a-colour' },
   semantic: {
-    colorBgCanvas: '{primitives.gray50}',
-    colorTextStrong: '{primitives.missing}',
+    'surface-page-default': '{primitives.gray50}',
+    'content-text-default': '{primitives.missing}',
     colorLoop: '{semantic.colorLoopBack}',
     colorLoopBack: '{semantic.colorLoop}',
   },
-  component: { cardBg: '{semantic.colorBgCanvas}' },
+  component: { cardBg: '{semantic.surface-page-default}' },
 }
 
 describe('resolveToken', () => {
@@ -43,19 +43,19 @@ describe('resolveToken', () => {
 
 describe('referenceOptions', () => {
   it('offers primitives to semantic tokens and excludes the token itself', () => {
-    const values = referenceOptions(theme, 'semantic', 'colorBgCanvas').map((option) => option.value)
+    const values = referenceOptions(theme, 'semantic', 'surface-page-default').map((option) => option.value)
     expect(values).toContain('primitives.white')
-    expect(values).not.toContain('semantic.colorBgCanvas')
+    expect(values).not.toContain('semantic.surface-page-default')
   })
 
   it('offers primitives and semantic tokens to component tokens', () => {
     const values = referenceOptions(theme, 'component', 'cardBg').map((option) => option.value)
     expect(values).toContain('primitives.white')
-    expect(values).toContain('semantic.colorBgCanvas')
+    expect(values).toContain('semantic.surface-page-default')
   })
 
   it('resolves a swatch colour per option', () => {
-    const option = referenceOptions(theme, 'semantic', 'colorBgCanvas').find((candidate) => candidate.value === 'primitives.gray50')
+    const option = referenceOptions(theme, 'semantic', 'surface-page-default').find((candidate) => candidate.value === 'primitives.gray50')
     expect(option?.color).toBe('#F8FAFC')
   })
 })
@@ -67,7 +67,7 @@ describe('buildCssVariables', () => {
 
   it('resolves references and falls back to black only for broken values', () => {
     const css = buildCssVariables(theme)
-    expect(css).toContain('--semantic-color-bg-canvas: #F8FAFC;')
+    expect(css).toContain('--semantic-surface-page-default: #F8FAFC;')
     expect(css).toContain('--component-card-bg: #F8FAFC;')
     expect(css).toContain('--primitives-broken: #000000;')
   })
@@ -92,7 +92,7 @@ describe('collectTokenIssues', () => {
     const issues = collectTokenIssues([{ id: 'demo', name: 'Demo', themes: { light: theme } }])
     expect(issues).toHaveLength(4)
     expect(issues.map((issue) => issue.error).toSorted()).toEqual(['cycle', 'cycle', 'dangling', 'invalid'])
-    expect(issues.find((issue) => issue.key === 'colorTextStrong')?.reference).toBe('primitives.missing')
+    expect(issues.find((issue) => issue.key === 'content-text-default')?.reference).toBe('primitives.missing')
   })
 })
 
