@@ -6,7 +6,7 @@
  * the UI (plus GitHub, because network requests belong on this side of the plugin).
  */
 
-import { figmaToDtcg, planDtcgToFigma, summarizePlan } from './lib/dtcg-figma.js'
+import { figmaToDtcg, parseThemeCollectionName, planDtcgToFigma, summarizePlan } from './lib/dtcg-figma.js'
 import { DEFAULT_GITHUB_SETTINGS, DEFAULT_TOKENS_URL, commitTokensFile } from './lib/github.js'
 import type { FetchLike } from './lib/github.js'
 import { BRAND_KEY, BRAND_NAMESPACE, THEME_KEY } from './lib/plugin-data.js'
@@ -15,7 +15,13 @@ import type { PluginSettings, PluginToUi, SyncOptions, UiToPlugin } from './mess
 
 const SETTINGS_KEY = 'token-sync-settings'
 
-const defaultSettings = (): PluginSettings => ({ sourceUrl: DEFAULT_TOKENS_URL, github: { ...DEFAULT_GITHUB_SETTINGS }, rememberToken: false })
+const defaultSettings = (): PluginSettings => ({
+  sourceUrl: DEFAULT_TOKENS_URL,
+  github: { ...DEFAULT_GITHUB_SETTINGS },
+  rememberToken: false,
+  themeNameStyle: 'slash',
+  layout: 'auto',
+})
 
 const post = (message: PluginToUi): void => figma.ui.postMessage(message)
 
@@ -72,6 +78,7 @@ const emptyReport = (plan: SyncPlan): SyncReport => ({
   collections: { create: 0, update: 0 },
   modes: { add: 0, remove: 0, rename: 0 },
   variables: { create: 0, update: 0, rename: 0, recreate: 0, remove: 0, values: 0 },
+  refused: { modes: 0, values: 0 },
   warnings: plan.warnings,
 })
 
@@ -112,8 +119,16 @@ const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
         collection.addMode(mode.name)
         report.modes.add += 1
       } catch (error) {
+        // The mode does not exist, so every value planned for it is dropped. Say so: the
+        // next sync (or the preview) has to make it obvious that half a theme is missing.
+        const skipped = plan.variables
+          .filter((variable) => variable.brandId === write.brandId && variable.theme === undefined)
+          .reduce((total, variable) => total + variable.values.filter((value) => value.mode === mode.name).length, 0)
+
+        report.refused.modes += 1
+        report.refused.values += skipped
         report.warnings.push(
-          `Figma refused a "${mode.name}" mode in "${write.name}": ${messageOf(error)}. The other themes were written — pick the "One collection per brand and theme" layout to get every theme on a plan that limits modes.`,
+          `Figma refused a "${mode.name}" mode in "${write.name}": ${messageOf(error)}. Nothing of a refused theme is written — its ${skipped} planned values were skipped. Switch "Variable layout" to "One collection per brand and theme" and sync again to get every theme on a plan that limits modes.`,
         )
       }
     }
@@ -211,12 +226,17 @@ const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
 const resolveLayout = (requested: SyncOptions['layout'], snapshot: FigmaSnapshot): SyncLayout => {
   if (requested !== 'auto') return requested
 
-  const perTheme = snapshot.collections.some((collection) => collection.theme !== undefined || collection.name.includes('/'))
+  // A per-theme collection is one with the theme plugin data, or a `brand/theme` /
+  // `brand__theme` name — either separator counts, so a hand-made file is recognised too.
+  const perTheme = snapshot.collections.some(
+    (collection) => (collection.theme !== undefined && collection.theme !== '') || parseThemeCollectionName(collection.name) !== null,
+  )
   return perTheme ? 'collections' : 'modes'
 }
 
 const syncOptions = (options: SyncOptions, snapshot: FigmaSnapshot) => ({
   layout: resolveLayout(options.layout, snapshot),
+  ...(options.themeNameStyle === undefined ? {} : { themeNameStyle: options.themeNameStyle }),
   prune: options.prune,
   codeSyntax: options.codeSyntax,
 })

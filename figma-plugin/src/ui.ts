@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import type { TemplateResult } from 'lit'
 import { DEFAULT_GITHUB_SETTINGS, fetchTokensFromUrl } from './lib/github.js'
 import type { GitHubSettings } from './lib/github.js'
-import type { SyncReport, SyncLayout, SyncSummary } from './lib/types.js'
+import type { SyncReport, SyncLayout, SyncSummary, ThemeNameStyle } from './lib/types.js'
 import type { ExportStats, PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
@@ -12,6 +12,9 @@ const post = (message: UiToPlugin): void => {
 }
 
 const countLabel = (count: number, singular: string, plural = `${singular}s`): string => `${count} ${count === 1 ? singular : plural}`
+
+/** Only a `SyncReport` (an applied sync) carries what Figma refused; a preview has nothing. */
+const refusedOf = (summary: SyncSummary | SyncReport): SyncReport['refused'] => ('refused' in summary ? summary.refused : { modes: 0, values: 0 })
 
 /**
  * The plugin panel. Mirrors the editor's wording: one card for DTCG → Figma, one
@@ -25,6 +28,7 @@ export class TokenSyncPluginApp extends LitElement {
     loaded: { type: Object },
     pasteValue: { type: String },
     layout: { type: String },
+    themeNameStyle: { type: String },
     prune: { type: Boolean },
     codeSyntax: { type: Boolean },
     busy: { type: String },
@@ -49,6 +53,8 @@ export class TokenSyncPluginApp extends LitElement {
   declare pasteValue: string
   /** `auto` follows the layout the file already uses. */
   declare layout: SyncLayout | 'auto'
+  /** How per-theme collections are named; only the `collections` layout uses it. */
+  declare themeNameStyle: ThemeNameStyle
   declare prune: boolean
   declare codeSyntax: boolean
   /** Non-empty while an operation is running: shown on the status line. */
@@ -73,6 +79,7 @@ export class TokenSyncPluginApp extends LitElement {
     this.loaded = undefined
     this.pasteValue = ''
     this.layout = 'auto'
+    this.themeNameStyle = 'slash'
     this.prune = false
     this.codeSyntax = true
     this.busy = ''
@@ -109,6 +116,8 @@ export class TokenSyncPluginApp extends LitElement {
         this.sourceUrl = message.settings.sourceUrl
         this.github = message.settings.github
         this.rememberToken = message.settings.rememberToken
+        this.themeNameStyle = message.settings.themeNameStyle ?? 'slash'
+        this.layout = message.settings.layout ?? 'auto'
         this.token = message.settings.github.token
         this.snapshotCounts = message.snapshot
         this.busy = ''
@@ -147,7 +156,7 @@ export class TokenSyncPluginApp extends LitElement {
   }
 
   private get _options(): SyncOptions {
-    return { layout: this.layout, prune: this.prune, codeSyntax: this.codeSyntax }
+    return { layout: this.layout, themeNameStyle: this.themeNameStyle, prune: this.prune, codeSyntax: this.codeSyntax }
   }
 
   private _accept(json: unknown, label: string) {
@@ -165,7 +174,16 @@ export class TokenSyncPluginApp extends LitElement {
   }
 
   private _persistSettings() {
-    post({ type: 'settings-update', settings: { sourceUrl: this.sourceUrl, github: this.github, rememberToken: this.rememberToken } })
+    post({
+      type: 'settings-update',
+      settings: {
+        sourceUrl: this.sourceUrl,
+        github: this.github,
+        rememberToken: this.rememberToken,
+        themeNameStyle: this.themeNameStyle,
+        layout: this.layout,
+      },
+    })
   }
 
   private _bindGithub(field: 'owner' | 'repo' | 'path' | 'branch') {
@@ -218,6 +236,13 @@ export class TokenSyncPluginApp extends LitElement {
     this.error = ''
     this.report = null
     post({ type: 'plan-sync', json: this.loaded, options: this._options })
+  }
+
+  /** One click out of the trap a refused mode describes: switch the layout and preview again. */
+  private _usePerThemeLayout = () => {
+    this.layout = 'collections'
+    this._persistSettings()
+    this._preview()
   }
 
   private _sync = () => {
@@ -303,16 +328,27 @@ export class TokenSyncPluginApp extends LitElement {
     `
   }
 
-  private _renderDiff(title: string, summary: SyncSummary): TemplateResult {
-    const layout = summary.layout === 'collections' ? 'one collection per brand and theme' : 'one collection per brand, one mode per theme'
+  private _renderDiff(title: string, summary: SyncSummary | SyncReport): TemplateResult {
+    const refused = refusedOf(summary)
+    const layout =
+      summary.layout === 'collections'
+        ? `one collection per brand and theme (${this.themeNameStyle === 'underscore' ? 'northstar__light' : 'northstar/light'})`
+        : 'one collection per brand, one mode per theme'
+    const lines = this._summaryLines(summary)
+    if (refused.values > 0) lines.push(`${countLabel(refused.values, 'value')} skipped — Figma refused ${countLabel(refused.modes, 'mode')}`)
 
     return html`
       <div class="report" role="status">
         <p class="report-title">${title}</p>
         <p class="muted">Layout: ${layout}</p>
         <ul>
-          ${this._summaryLines(summary).map((line) => html`<li>${line}</li>`)}
+          ${lines.map((line) => html`<li>${line}</li>`)}
         </ul>
+        ${
+          refused.values > 0 && summary.layout !== 'collections'
+            ? html`<button type="button" class="primary" @click=${this._usePerThemeLayout}>Use one collection per brand and theme</button>`
+            : nothing
+        }
       </div>
       ${this._renderNotes(summary.warnings)}
     `
@@ -381,6 +417,7 @@ export class TokenSyncPluginApp extends LitElement {
               name="layout"
               @change=${(event: Event) => {
                 this.layout = (event.target as HTMLSelectElement).value as SyncLayout | 'auto'
+                this._persistSettings()
               }}
             >
               <option value="auto" ?selected=${this.layout === 'auto'}>Automatic — keep what this file already uses</option>
@@ -391,6 +428,25 @@ export class TokenSyncPluginApp extends LitElement {
           <p class="muted">
             Figma limits how many modes a collection may have on some plans. If a sync says a mode was refused, pick
             <em>one collection per brand and theme</em> to get every theme.
+          </p>
+          <label class="stacked">
+            Collection naming
+            <select
+              name="theme-name-style"
+              ?disabled=${this.layout === 'modes'}
+              @change=${(event: Event) => {
+                this.themeNameStyle = (event.target as HTMLSelectElement).value as ThemeNameStyle
+                this._persistSettings()
+              }}
+            >
+              <option value="slash" ?selected=${this.themeNameStyle === 'slash'}>northstar/light</option>
+              <option value="underscore" ?selected=${this.themeNameStyle === 'underscore'}>northstar__light</option>
+            </select>
+          </label>
+          <p class="muted">
+            Only the <em>one collection per brand and theme</em> layout names collections, so this is ignored while the layout is
+            <em>one collection per brand, one mode per theme</em>. Both spellings are read back, so switching renames the existing collections on the next sync
+            instead of duplicating their variables.
           </p>
           <label class="check">
             <input type="checkbox" .checked=${this.codeSyntax} @change=${(event: Event) => (this.codeSyntax = (event.target as HTMLInputElement).checked)} />

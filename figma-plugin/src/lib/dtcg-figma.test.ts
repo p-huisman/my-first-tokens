@@ -3,7 +3,7 @@ import shippedTokens from '../../../public/tokens.json'
 import gradientTokens from '../../../tokens-with-gradient.json'
 import { fromDesignTokensFormat } from '../../../src/lib/dtcg.js'
 import type { DtcgTokenFile } from '../../../src/lib/types.js'
-import { figmaToDtcg, planDtcgToFigma, readFigmaIds, summarizePlan } from './dtcg-figma.js'
+import { figmaToDtcg, parseThemeCollectionName, planDtcgToFigma, readFigmaIds, summarizePlan, themeCollectionName } from './dtcg-figma.js'
 import type { DtcgToFigmaOptions } from './dtcg-figma.js'
 import { FakeFigmaStore } from './fake-figma.js'
 import type { FigmaSnapshot } from './types.js'
@@ -175,6 +175,91 @@ describe('the collections layout', () => {
 
     expect(light?.valuesByMode[lightMode]).toEqual({ type: 'alias', id: gray?.id })
     expect(gray?.id).not.toBe(dark?.id)
+  })
+
+  it('names the collections `brand__theme` when the naming option asks for it', () => {
+    const store = new FakeFigmaStore()
+    const plan = syncInto(store, shippedTokens, { layout: 'collections', themeNameStyle: 'underscore' })
+
+    expect(plan.collections.map((collection) => collection.name)).toEqual(['northstar__light', 'northstar__dark', 'sunset__light', 'sunset__dark'])
+    expect(store.collectionsNamed('northstar__light')).toHaveLength(1)
+
+    // Both spellings are read back the same way, so the exported file is unchanged.
+    const exported = figmaToDtcg(store.snapshot(), { generatedAt: '2026-09-22T18:28:04.007Z' })
+    expect(exported.warnings).toEqual([])
+    expect(fromDesignTokensFormat(exported.file)?.brands).toEqual(fromDesignTokensFormat(shippedTokens)?.brands)
+  })
+
+  it('renames the existing collections when the naming changes, instead of duplicating them', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens, { layout: 'collections' })
+    const before = store.snapshot().variables.length
+
+    syncInto(store, shippedTokens, { layout: 'collections', themeNameStyle: 'underscore' })
+
+    expect(store.collectionsNamed('northstar/light')).toHaveLength(0)
+    expect(store.collectionsNamed('northstar__light')).toHaveLength(1)
+    expect(store.snapshot().variables).toHaveLength(before)
+  })
+
+  it('still matches a `brand/theme` collection when the naming option is the other spelling', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, shippedTokens, { layout: 'collections' })
+
+    const plan = planDtcgToFigma(shippedTokens, store.snapshot(), { layout: 'collections', themeNameStyle: 'underscore' })
+
+    // The existing collections are updated (and renamed); no variable is written again.
+    expect(plan.collections.every((collection) => collection.collectionId !== undefined)).toBe(true)
+    expect(summarizePlan(plan).variables).toEqual({ create: 0, update: 0, rename: 0, recreate: 0, remove: 0, values: 0 })
+  })
+
+  it('reads a hand-made `brand__theme` file without splitting it into two brands', () => {
+    const store = new FakeFigmaStore()
+    const light = store.addCollection('northstar__light', { modes: ['light'] })
+    const dark = store.addCollection('northstar__dark', { modes: ['dark'] })
+    store.addVariable('primitives/color/white', light.id, 'COLOR')
+    store.addVariable('primitives/color/white', dark.id, 'COLOR')
+
+    const exported = figmaToDtcg(store.snapshot())
+
+    // Without plugin data the name itself has to carry the brand and the theme.
+    expect(exported.stats.brands).toBe(1)
+    expect(Object.keys((exported.file.brands.northstar ?? {}) as Record<string, unknown>)).toEqual(['light', 'dark'])
+  })
+
+  it('finds a hand-made `brand__theme` collection when syncing, instead of adding a brand collection', () => {
+    const store = new FakeFigmaStore()
+    const light = store.addCollection('northstar__light', { modes: ['light'] })
+    const dark = store.addCollection('northstar__dark', { modes: ['dark'] })
+
+    const plan = syncInto(store, shippedTokens, { layout: 'collections', themeNameStyle: 'underscore' })
+
+    expect(plan.collections.filter((collection) => collection.brandId === 'northstar').map((collection) => collection.collectionId)).toEqual([
+      light.id,
+      dark.id,
+    ])
+    expect(store.collectionsNamed('northstar')).toHaveLength(0)
+    expect(store.collectionsNamed('northstar__light')).toHaveLength(1)
+  })
+})
+
+describe('theme collection names', () => {
+  it('joins a brand and a theme with the separator the option picks', () => {
+    expect(themeCollectionName('northstar', 'light')).toBe('northstar/light')
+    expect(themeCollectionName('northstar', 'light', 'underscore')).toBe('northstar__light')
+  })
+
+  it('reads both spellings back, and refuses names without a usable separator', () => {
+    expect(parseThemeCollectionName('northstar/light')).toEqual({ brand: 'northstar', theme: 'light' })
+    expect(parseThemeCollectionName('northstar__light')).toEqual({ brand: 'northstar', theme: 'light' })
+    // A theme may contain the other separator, and the brand may contain a hyphen.
+    expect(parseThemeCollectionName('northstar/dark/high-contrast')).toEqual({ brand: 'northstar', theme: 'dark/high-contrast' })
+    expect(parseThemeCollectionName('acme-ds__dark')).toEqual({ brand: 'acme-ds', theme: 'dark' })
+    // Names the plugin did not write stay ambiguous instead of being guessed at.
+    expect(parseThemeCollectionName('northstar')).toBeNull()
+    expect(parseThemeCollectionName('northstar/')).toBeNull()
+    expect(parseThemeCollectionName('/light')).toBeNull()
+    expect(parseThemeCollectionName('northstar__')).toBeNull()
   })
 })
 

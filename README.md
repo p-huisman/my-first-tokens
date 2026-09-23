@@ -93,8 +93,11 @@ loads. While you are changing the plugin, run `npm run plugin:watch` instead —
    and values the sync would create. It writes nothing.
 4. Press **Sync to Figma**. Each brand becomes a variable collection, each theme a mode in it, each
    token a variable, and each reference a real Figma alias. If Figma refuses a mode (some plans allow
-   only one per collection), the sync still completes and tells you to switch **Variable layout** to
-   _one collection per brand and theme_, which works on every plan.
+   only one per collection), the sync still completes, tells you how many values that theme lost, and
+   offers a button that switches **Variable layout** to _one collection per brand and theme_ for you —
+   that layout works on every plan and the choice is remembered for next time. **Collection naming**
+   next to it then decides whether those collections read `northstar/light` or `northstar__light`;
+   switching it renames them on the next sync instead of duplicating variables.
 5. Run it again after editing the JSON — unchanged variables and values are left alone, so a second
    sync normally reports _Already up to date — nothing to write._
 6. _Remove variables and modes that are no longer in the JSON_ is off by default: a sync never deletes

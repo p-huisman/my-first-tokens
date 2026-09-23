@@ -65,10 +65,22 @@ export type TokenKind = 'color' | 'dimension' | 'gradient' | 'string'
  *
  * - `modes`: one collection per brand, one mode per theme. Nicest to design with, but
  *   some Figma plans limit a collection to a single mode.
- * - `collections`: one collection per brand *and* theme (`northstar/light`, each with a
- *   single mode). More collections, but it works on every plan.
+ * - `collections`: one collection per brand *and* theme (`northstar/light` or
+ *   `northstar__light`, each with a single mode). More collections, but it works on
+ *   every plan.
  */
 export type SyncLayout = 'modes' | 'collections'
+
+/**
+ * How a per-theme collection is named in the `collections` layout.
+ *
+ * - `slash`: `northstar/light` — the original naming.
+ * - `underscore`: `northstar__light` — no tooling reads `__` as a hierarchy.
+ *
+ * Both spellings are understood when *reading* a file, so switching this option only
+ * renames existing collections; it never duplicates variables.
+ */
+export type ThemeNameStyle = 'slash' | 'underscore'
 
 /**
  * A value the plan wants in Figma. Aliases are stored as coordinates instead of
@@ -136,4 +148,9 @@ export interface SyncSummary {
 export interface SyncReport extends SyncSummary {
   /** `true` when the plan was only previewed, not written to Figma. */
   dryRun: boolean
+  /**
+   * What Figma would not accept: a refused mode (some plans limit how many a collection
+   * may have) and the planned values that were dropped because that mode does not exist.
+   */
+  refused: { modes: number; values: number }
 }

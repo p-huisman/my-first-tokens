@@ -158,8 +158,9 @@ let store: ReturnType<typeof createFigmaStub>
 const WAIT = { timeout: 2000, interval: 5 }
 
 /** Loads `code.ts` fresh, with `figma` and `__html__` stubbed the way Figma provides them. */
-const loadPlugin = async (options: { modeLimit?: number } = {}) => {
+const loadPlugin = async (options: { modeLimit?: number; storage?: Record<string, unknown> } = {}) => {
   store = createFigmaStub(options)
+  for (const [key, value] of Object.entries(options.storage ?? {})) store.storage.set(key, value)
   const globals = globalThis as unknown as Record<string, unknown>
   globals.figma = store.api
   globals.__html__ = '<html><body></body></html>'
@@ -201,6 +202,8 @@ describe('code.ts', () => {
         sourceUrl: 'https://p-huisman.github.io/my-first-tokens/tokens.json',
         github: { owner: 'p-huisman', repo: 'my-first-tokens', path: 'public/tokens.json', branch: 'main', token: '' },
         rememberToken: false,
+        themeNameStyle: 'slash',
+        layout: 'auto',
       },
       snapshot: { collections: 0, variables: 0 },
     })
@@ -258,6 +261,8 @@ describe('code.ts', () => {
       sourceUrl: 'https://example.com/tokens.json',
       github: { owner: 'o', repo: 'r', path: 'p/tokens.json', branch: 'main', token: 'secret' },
       rememberToken: false,
+      themeNameStyle: 'slash' as const,
+      layout: 'auto' as const,
     }
 
     store.onmessage?.({ type: 'settings-update', settings })
@@ -279,6 +284,9 @@ describe('code.ts', () => {
     // The limit is reported with a way out instead of failing the whole sync.
     expect(reply.report.warnings.join(' ')).toContain('Limited to 1 modes only')
     expect(reply.report.warnings.join(' ')).toContain('One collection per brand and theme')
+    // And the note says what was lost: nothing of a refused theme is written.
+    expect(reply.report.refused).toEqual({ modes: 2, values: 68 })
+    expect(reply.report.warnings[0]).toContain('its 34 planned values were skipped')
 
     const collection = store.collectionNamed('northstar')
     expect(collection?.modes.map((mode) => mode.name)).toEqual(['light'])
@@ -312,6 +320,73 @@ describe('code.ts', () => {
     )
 
     expect(reply).toMatchObject({ summary: { layout: 'collections' } })
+  })
+
+  it('follows a `brand__theme` file too when the choice is automatic', async () => {
+    await loadPlugin()
+    store.api.variables.createVariableCollection('northstar__light')
+
+    const reply = await send(
+      { type: 'plan-sync', json: shippedTokens, options: { ...syncOptions, layout: 'auto' } },
+      (message) => message.type === 'sync-preview',
+    )
+
+    expect(reply).toMatchObject({ summary: { layout: 'collections' } })
+  })
+
+  it('names the per-theme collections the way the panel asks', async () => {
+    await loadPlugin()
+    const reply = await send(
+      { type: 'apply-sync', json: shippedTokens, options: { ...syncOptions, layout: 'collections', themeNameStyle: 'underscore' } },
+      (message) => message.type === 'sync-applied',
+    )
+    if (reply?.type !== 'sync-applied') throw new Error('expected sync-applied')
+
+    const collection = store.collectionNamed('northstar__light')
+    expect(collection?.modes.map((mode) => mode.name)).toEqual(['light'])
+    expect(collection?.getSharedPluginData(BRAND_NAMESPACE, 'brandId')).toBe('northstar')
+    expect(collection?.getSharedPluginData(BRAND_NAMESPACE, 'theme')).toBe('light')
+    expect(store.collectionNamed('northstar/light')).toBeUndefined()
+    expect(store.variableIn('northstar__light', 'primitives/color/white')).toBeDefined()
+    expect(reply).toMatchObject({ report: { collections: { create: 4, update: 0 } } })
+    // The per-theme layout never calls addMode, so no mode can be refused on any plan.
+    expect(reply.report.refused).toEqual({ modes: 0, values: 0 })
+    expect(reply.report.warnings).toEqual([])
+  })
+
+  it('stores the collection naming choice for the next session', async () => {
+    await loadPlugin()
+    const settings = {
+      sourceUrl: 'https://example.com/tokens.json',
+      github: { owner: 'o', repo: 'r', path: 'p/tokens.json', branch: 'main', token: '' },
+      rememberToken: false,
+      themeNameStyle: 'underscore' as const,
+      layout: 'collections' as const,
+    }
+
+    store.onmessage?.({ type: 'settings-update', settings })
+    await vi.waitFor(() => {
+      expect(store.storage.get('token-sync-settings')).toMatchObject({ themeNameStyle: 'underscore', layout: 'collections' })
+    }, WAIT)
+  })
+
+  it('remembers an explicit layout when the panel is reopened', async () => {
+    // Reopening the plugin resets in-memory state, so an unpersisted choice would silently
+    // fall back to `auto` — which reads a file holding leftover brand collections as
+    // "modes" and tries to add a mode Figma then refuses all over again.
+    await loadPlugin({
+      storage: {
+        'token-sync-settings': {
+          sourceUrl: 'https://example.com/tokens.json',
+          github: { owner: 'o', repo: 'r', path: 'p/tokens.json', branch: 'main', token: '' },
+          rememberToken: false,
+          themeNameStyle: 'underscore',
+          layout: 'collections',
+        },
+      },
+    })
+
+    expect(store.messages[0]).toMatchObject({ type: 'ready', settings: { themeNameStyle: 'underscore', layout: 'collections' } })
   })
 
   it('reports a failed push instead of throwing', async () => {

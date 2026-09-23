@@ -54,22 +54,36 @@ The panel has two halves — one per direction.
 4. Two optional switches: **code syntax** adds a `var(--…)` value to every variable so Dev Mode shows
    the CSS name, and **prune** also removes variables and modes that the JSON no longer contains. Prune
    is off by default, so a sync never deletes anything unless you ask for it.
-5. **Variable layout** decides how brands and themes are stored — see below. Leave it on _Automatic_
-   unless you are moving an existing file to the other layout.
+5. **Variable layout** decides how brands and themes are stored, and **Collection naming** decides
+   whether the per-theme collections read `brand/theme` or `brand__theme` — see below. Leave the layout
+   on _Automatic_ unless you are moving an existing file to the other one.
 
 ### Layouts
 
-| Layout                                                   | Collections                            | Modes per collection               | When to use it                                                       |
-| -------------------------------------------------------- | -------------------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
-| _One collection per brand, one mode per theme_ (default) | `northstar`, `sunset`                  | one per theme (`light`, `dark`)    | design work: a designer switches the mode on a frame                 |
-| _One collection per brand and theme_                     | `northstar/light`, `northstar/dark`, … | exactly one, named after the theme | Figma plans that limit modes, or when you want per-theme collections |
+| Layout                                                   | Collections                             | Modes per collection               | When to use it                                                       |
+| -------------------------------------------------------- | --------------------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| _One collection per brand, one mode per theme_ (default) | `northstar`, `sunset`                   | one per theme (`light`, `dark`)    | design work: a designer switches the mode on a frame                 |
+| _One collection per brand and theme_                     | `northstar/light`, `northstar__dark`, … | exactly one, named after the theme | Figma plans that limit modes, or when you want per-theme collections |
 
-_Automatic_ keeps whichever layout the file already uses (a collection named `brand/theme` or one
-carrying this plugin's theme data means "per theme collections"), so repeated syncs never flip-flop.
+**Collection naming** picks the spelling used by the per-theme layout: `northstar/light` or
+`northstar__light`. It is remembered between sessions, ignored while the layout is the modes one, and
+— because _both_ spellings are read back — switching it only **renames** the existing collections on
+the next sync (they are matched by plugin data), never duplicating their variables. A file with
+hand-made `brand__theme` collections is read as one brand with one theme per collection too.
+
+_Automatic_ keeps whichever layout the file already uses (a collection named `brand/theme` or
+`brand__theme`, or one carrying this plugin's theme data, means "per theme collections"), so repeated
+syncs never flip-flop.
 
 Figma refuses extra modes on some plans with _"Limited to N modes only"_. That no longer fails the
-sync: the modes it did allow are written, the rest are reported with the hint to switch to the
-per-theme layout. Because that layout never calls `addMode`, it works on every plan.
+sync: the modes it did allow are written, and each refused one is reported as a note naming how many
+of its planned values were **not** written (a refused theme contributes none of its values), together
+with a **Use one collection per brand and theme** button that switches the layout and previews again.
+Because the per-theme layout never calls `addMode`, it works on every plan.
+
+The layout choice is remembered in Figma client storage, so reopening the plugin cannot silently fall
+back to _Automatic_ — which would read a file holding leftover brand collections as "modes" and try to
+add the refused mode all over again.
 
 Switching layouts leaves the previous collections in place (nothing is deleted without **prune**), so
 a file that moves from modes to per-theme collections keeps the old brand collection around until you
@@ -126,9 +140,9 @@ actually differ, and a variable whose resolved type changed is reported and recr
   and read back from a `STRING` variable holding the editor's gradient JSON when exporting.
 - **`rem`/`em`/`%` units** become unitless `FLOAT` values; the unit is preserved in the
   variable description and reported as a note.
-- **Modes are plan-dependent** in Figma. A refused `addMode` is reported as a note and the sync carries
-  on with the accepted modes; choose the _one collection per brand and theme_ layout to sync every
-  theme on a plan that limits modes.
+- **Modes are plan-dependent** in Figma. A refused `addMode` is reported as a note (with the number of
+  values it dropped) and the sync carries on with the accepted modes; choose the _one collection per
+  brand and theme_ layout to sync every theme on a plan that limits modes.
 - **Boolean / easing / timing variables** are skipped during export (no DTCG type in this
   model) and counted in the panel's "skipped" total.
 - **Flat legacy primitives** (`primitives/white`, as older Figma exports produced) are read

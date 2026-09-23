@@ -1,5 +1,5 @@
 import type { GitHubSettings } from './lib/github.js'
-import type { SyncLayout, SyncReport, SyncSummary } from './lib/types.js'
+import type { SyncLayout, SyncReport, SyncSummary, ThemeNameStyle } from './lib/types.js'
 
 /** Settings the plugin stores in `figma.clientStorage`. */
 export interface PluginSettings {
@@ -7,6 +7,10 @@ export interface PluginSettings {
   github: GitHubSettings
   /** Keep the token between sessions; when off it is only used for one push. */
   rememberToken: boolean
+  /** How per-theme collections are named: `northstar/light` or `northstar__light`. */
+  themeNameStyle: ThemeNameStyle
+  /** The layout choice, so reopening the panel cannot silently fall back to `modes`. */
+  layout: SyncLayout | 'auto'
 }
 
 export interface ExportStats {
@@ -28,6 +32,8 @@ export type UiToPlugin =
 export interface SyncOptions {
   /** `auto` keeps whatever layout the file already uses. */
   layout: SyncLayout | 'auto'
+  /** Naming for per-theme collections; `slash` (`northstar/light`) when omitted. */
+  themeNameStyle?: ThemeNameStyle
   /** Remove Figma variables and modes that are no longer in the DTCG file. */
   prune: boolean
   /** Write `var(--css-variable)` code syntax for Dev Mode. */

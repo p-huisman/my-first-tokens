@@ -30,6 +30,7 @@ import type {
   SyncLayout,
   SyncPlan,
   SyncSummary,
+  ThemeNameStyle,
   TokenKind,
   VariableWrite,
 } from './types.js'
@@ -98,13 +99,37 @@ const parseReference = (value: string, brandId: string, themeName: string): Refe
 /** Figma can only alias a variable of the same resolved type. */
 const resolvedTypeFor = (kind: TokenKind): FigmaResolvedType => (kind === 'dimension' ? 'FLOAT' : kind === 'color' || kind === 'gradient' ? 'COLOR' : 'STRING')
 
-const brandIdOfCollection = (collection: FigmaCollectionSnapshot): string => collection.brandId ?? toBrandId(collection.name.split('/')[0] ?? collection.name)
+const THEME_SEPARATORS: Record<ThemeNameStyle, string> = { slash: '/', underscore: '__' }
+const DEFAULT_THEME_NAME_STYLE: ThemeNameStyle = 'slash'
+
+/** `northstar` + `light` → `northstar/light` (`northstar__light` for `underscore`). */
+export const themeCollectionName = (brandName: string, theme: string, style: ThemeNameStyle = DEFAULT_THEME_NAME_STYLE): string =>
+  `${brandName}${THEME_SEPARATORS[style]}${theme}`
+
+/**
+ * Splits a per-theme collection name back into its parts. Both separators are accepted,
+ * so a file keeps matching after the naming option was switched and a hand-made
+ * `northstar__light` is not mistaken for a brand of its own. `null` when the name has no
+ * usable separator — then the plugin data, or the mode names, decide instead.
+ */
+export const parseThemeCollectionName = (name: string): { brand: string; theme: string } | null => {
+  const slash = name.indexOf('/')
+  if (slash > 0 && slash < name.length - 1) return { brand: name.slice(0, slash), theme: name.slice(slash + 1) }
+
+  const underscore = name.lastIndexOf('__')
+  if (underscore <= 0 || underscore >= name.length - 2) return null
+
+  return { brand: name.slice(0, underscore), theme: name.slice(underscore + 2) }
+}
+
+const brandIdOfCollection = (collection: FigmaCollectionSnapshot): string =>
+  collection.brandId ?? toBrandId(parseThemeCollectionName(collection.name)?.brand ?? collection.name)
 
 /** The theme a per-theme collection holds, from plugin data or its `brand/theme` name. */
 const themeHintOf = (collection: FigmaCollectionSnapshot): string | undefined => {
   if (collection.theme !== undefined && collection.theme !== '') return collection.theme
 
-  const suffix = collection.name.split('/')[1]
+  const suffix = parseThemeCollectionName(collection.name)?.theme
   return suffix === undefined || suffix.trim() === '' ? undefined : toBrandId(suffix)
 }
 
@@ -140,7 +165,10 @@ const findCollection = (index: SnapshotIndex, brand: Brand): FigmaCollectionSnap
 /** The collection holding a single theme, in the `collections` layout. */
 const findThemeCollection = (index: SnapshotIndex, brand: Brand, theme: string): FigmaCollectionSnapshot | undefined =>
   index.collections.find((collection) => collection.brandId === brand.id && collection.theme === theme) ??
-  index.collections.find((collection) => collection.name === `${brand.name}/${theme}` || collection.name === `${brand.id}/${theme}`)
+  index.collections.find((collection) => {
+    const parsed = parseThemeCollectionName(collection.name)
+    return parsed !== null && parsed.theme === theme && (parsed.brand === brand.name || parsed.brand === brand.id)
+  })
 
 /** The variable a token should update: the DTCG hint first, then the name in its collection. */
 const findVariable = (
@@ -347,6 +375,8 @@ const sameValue = (current: FigmaValue, planned: PlannedValue, aliasTargetId: st
 export interface DtcgToFigmaOptions {
   /** How the tokens are laid out in Figma. Defaults to one collection per brand with a mode per theme. */
   layout?: SyncLayout
+  /** Naming for per-theme collections. Defaults to `slash` (`northstar/light`). */
+  themeNameStyle?: ThemeNameStyle
   /** Remove variables and modes that are no longer in the DTCG file. */
   prune?: boolean
   /** Write `var(--css-variable)` code syntax, which Dev Mode shows. Defaults to true. */
@@ -406,7 +436,7 @@ export const planDtcgToFigma = (json: unknown, snapshot: FigmaSnapshot, options:
         plan.writes.push({
           brandId: brand.id,
           theme,
-          name: `${brand.name}/${theme}`,
+          name: themeCollectionName(brand.name, theme, options.themeNameStyle),
           ...(collection === undefined ? {} : { collectionId: collection.id }),
           defaultModeName: theme,
           addModes: [],
@@ -875,7 +905,7 @@ export const figmaToDtcg = (snapshot: FigmaSnapshot, options: FigmaToDtcgOptions
 
     const key = brandIdOfCollection(collection)
     const group = groups.find((candidate) => candidate.key === key)
-    if (group === undefined) groups.push({ key, name: collection.name.split('/')[0] ?? collection.name, collections: [collection] })
+    if (group === undefined) groups.push({ key, name: parseThemeCollectionName(collection.name)?.brand ?? collection.name, collections: [collection] })
     else group.collections.push(collection)
   }
 
