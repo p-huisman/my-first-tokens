@@ -793,6 +793,9 @@ export class TokenSyncApp extends LitElement {
     }
 
     .primitive-filter select {
+      min-height: unset;
+      padding: 7px 10px;
+      border-radius: 8px;
       font-size: 12px;
     }
 
