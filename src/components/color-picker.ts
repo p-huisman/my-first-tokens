@@ -36,9 +36,11 @@ export class TknColorPicker extends LitElement {
     this.withAlpha = false
   }
 
-  updated(changedProperties: PropertyValues<this>) {
+  willUpdate(changedProperties: PropertyValues<this>) {
     if (changedProperties.has('value')) this._setFromValue(this.value)
+  }
 
+  updated() {
     const color = this._color()
     this.style.setProperty('--hue', `${this.hue}deg`)
     this.style.setProperty('--hue-color', `hsl(${this.hue} 100% 50%)`)
