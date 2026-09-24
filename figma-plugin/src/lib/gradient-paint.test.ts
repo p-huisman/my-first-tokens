@@ -47,6 +47,9 @@ const motion = (value: Record<string, unknown>): GradientValue => ({
   extensions: { 'org.designsystem.motion': value },
 })
 
+/** The same, with the geometry in the namespace a hand-edited or Figma-tool file uses. */
+const figmaMotion = (block: Record<string, unknown>): GradientValue => ({ ...motion({ type: 'linear' }), extensions: { 'com.figma': block } })
+
 describe('angles and transforms', () => {
   it('keeps a horizontal gradient as the identity matrix', () => {
     expect(angleToTransform(90)).toEqual([
@@ -142,7 +145,62 @@ describe('readGradientMotion', () => {
       }),
     ).toEqual({ kind: 'linear' })
     expect(readGradientMotion(motion({ type: 'radial' })).kind).toBe('radial')
-    expect(readGradientMotion(motion({ type: 'conic' })).kind).toBe('linear')
+    expect(readGradientMotion(motion({ type: 'conic' })).kind).toBe('angular')
+  })
+
+  it('reads the geometry a hand-written `com.figma` block carries', () => {
+    // The shape a hand-edited or Tokens-Studio style file uses: paint type, angle, start/end.
+    expect(readGradientMotion(figmaMotion({ type: 'LINEAR', angle: 45 }))).toEqual({ kind: 'linear', angle: 45 })
+    expect(readGradientMotion(figmaMotion({ type: 'RADIAL', angle: 45 })).kind).toBe('radial')
+    expect(readGradientMotion(figmaMotion({ type: 'conic' })).kind).toBe('angular')
+
+    // An angle is the readable form, so it beats the handle positions in the same block.
+    expect(readGradientMotion(figmaMotion({ angle: 45, start: [0, 0], end: [1, 1] })).angle).toBe(45)
+
+    // Without an angle, the handles decide.
+    const handles = readGradientMotion(figmaMotion({ start: [0, 0], end: [1, 1] }))
+    expect(
+      transformToAngle(
+        handles.transform ?? [
+          [0, 0, 0],
+          [0, 0, 0],
+        ],
+      ),
+    ).toBe(135)
+
+    // The exact matrix beats everything.
+    expect(readGradientMotion(figmaMotion({ gradientTransform: angleToTransform(90), angle: 45 }))).toEqual({ kind: 'linear', transform: angleToTransform(90) })
+  })
+
+  it('prefers `com.figma` over the editor block, and ignores `studio.tokens`', () => {
+    const both: GradientValue = {
+      stops: [
+        { color: '#000000', position: 0 },
+        { color: '#ffffff', position: 1 },
+      ],
+      extensions: {
+        'com.figma': { type: 'LINEAR', angle: 45 },
+        'org.designsystem.motion': { type: 'linear', figmaGradientTransform: angleToTransform(90), angle: '90deg' },
+        'studio.tokens': { type: 'linear', angle: '180deg' },
+      },
+    }
+
+    expect(readGradientMotion(both)).toEqual({ kind: 'linear', angle: 45 })
+  })
+
+  it('falls back to the editor block when `com.figma` says nothing about geometry', () => {
+    const onlyIds: GradientValue = {
+      stops: [
+        { color: '#000000', position: 0 },
+        { color: '#ffffff', position: 1 },
+      ],
+      extensions: {
+        'com.figma': { variableId: 'VariableID:1' },
+        'org.designsystem.motion': { type: 'linear', angle: '90deg' },
+      },
+    }
+
+    expect(readGradientMotion(onlyIds)).toEqual({ kind: 'linear', angle: 90 })
   })
 
   it('maps kinds onto Figma paint types and back', () => {
@@ -223,6 +281,17 @@ describe('paintToGradient', () => {
             [0.5, 0.5, 0],
           ],
           angle: '45deg',
+        },
+        // The same geometry in the namespace people and other Figma tools read.
+        'com.figma': {
+          type: 'LINEAR',
+          gradientTransform: [
+            [0.5, -0.5, 0.5],
+            [0.5, 0.5, 0],
+          ],
+          angle: 45,
+          start: [0, 1],
+          end: [1, 0],
         },
       },
     })

@@ -35,6 +35,9 @@ const theme: ThemeTokens = {
   },
 }
 
+/** The CSS a single `primitives.gradient` token renders to. */
+const cssOf = (gradient: unknown): string => buildCssVariables({ primitives: { gradient: { fade: gradient as never } } })
+
 describe('resolveToken', () => {
   it('resolves colours and chained references', () => {
     expect(resolveToken('#ABC', theme)).toEqual({ value: '#AABBCC' })
@@ -96,6 +99,19 @@ describe('buildCssVariables', () => {
     expect(css).toContain('--semantic-surface-page-default: #F8FAFC;')
     expect(css).toContain('--component-card-bg: #F8FAFC;')
     expect(css).toContain('--primitives-color-broken: #000000;')
+  })
+
+  it('renders gradients with the angle the file carries, from either namespace', () => {
+    const stops = [
+      { color: '#FFFFFF', position: 0 },
+      { color: '#000000', position: 1 },
+    ]
+
+    expect(cssOf({ stops })).toContain('linear-gradient(90deg,')
+    expect(cssOf({ stops, extensions: { 'org.designsystem.motion': { angle: '45deg' } } })).toContain('linear-gradient(45deg,')
+    // A hand-written block may carry a bare number, which has to become valid CSS.
+    expect(cssOf({ stops, extensions: { 'com.figma': { angle: 45 } } })).toContain('linear-gradient(45deg,')
+    expect(cssOf({ stops, extensions: { 'com.figma': { angle: '135deg' } } })).toContain('linear-gradient(135deg,')
   })
 })
 

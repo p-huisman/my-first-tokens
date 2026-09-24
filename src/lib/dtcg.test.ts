@@ -91,6 +91,45 @@ describe('fromDesignTokensFormat', () => {
 })
 
 describe('toDesignTokensFormat', () => {
+  it('imports a semantic gradient and exports it as a gradient again', () => {
+    const file = {
+      brands: {
+        demo: {
+          light: {
+            semantic: {
+              'surface-brand-gradient': {
+                $type: 'gradient',
+                $value: [
+                  { color: '#7C3AED', position: 0 },
+                  { color: '#FFFFFF', position: 1 },
+                ],
+                $extensions: { 'com.figma': { type: 'LINEAR', angle: 45 } },
+              },
+            },
+          },
+        },
+      },
+    }
+
+    const imported = fromDesignTokensFormat(file)
+    expect(imported?.warnings).toEqual([])
+    expect(imported?.brands[0]?.themes.light?.semantic?.['surface-brand-gradient']).toMatchObject({
+      stops: [
+        { color: '#7C3AED', position: 0 },
+        { color: '#FFFFFF', position: 1 },
+      ],
+    })
+
+    // Export → import is stable, and the token keeps its `$type` and its extensions.
+    const exportedFile = toDesignTokensFormat(imported?.brands ?? [])
+    expect(fromDesignTokensFormat(exportedFile)?.brands).toEqual(imported?.brands)
+
+    const exported = exportedFile.brands.demo as { light: { semantic: Record<string, { $type: string; $extensions?: unknown }> } }
+    const token = exported.light.semantic['surface-brand-gradient']
+    expect(token?.$type).toBe('gradient')
+    expect(token?.$extensions).toEqual({ 'com.figma': { type: 'LINEAR', angle: 45 } })
+  })
+
   it('exports DTCG colour objects and absolute references', () => {
     const brands: Brand[] = [
       {

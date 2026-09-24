@@ -40,6 +40,8 @@ export interface GradientPaintResult {
 }
 
 const MOTION_KEY = 'org.designsystem.motion'
+/** The namespace Figma tools and hand-edited files use for paint geometry. */
+const FIGMA_KEY = 'com.figma'
 
 /** Rounds away float noise; `-0` becomes `0`, so two equal matrices compare equal. */
 const normalize = (value: number, precision: number): number => {
@@ -184,11 +186,34 @@ const PAINT_TYPES: Record<GradientKind, FigmaGradientPaintSnapshot['type']> = {
   diamond: 'GRADIENT_DIAMOND',
 }
 
+/** The spelling Figma tools use in `$extensions["com.figma"].type`. */
+const PAINT_TYPE_NAMES: Record<GradientKind, string> = {
+  linear: 'LINEAR',
+  radial: 'RADIAL',
+  angular: 'ANGULAR',
+  diamond: 'DIAMOND',
+}
+
+const PAINT_KIND_NAMES: Record<string, GradientKind> = {
+  gradient_linear: 'linear',
+  linear: 'linear',
+  gradient_radial: 'radial',
+  radial: 'radial',
+  gradient_angular: 'angular',
+  angular: 'angular',
+  conic: 'angular',
+  gradient_diamond: 'diamond',
+  diamond: 'diamond',
+}
+
 export const paintTypeFor = (kind: GradientKind): FigmaGradientPaintSnapshot['type'] => PAINT_TYPES[kind]
 
 /** `GRADIENT_RADIAL` → `radial`; anything unexpected stays linear. */
 export const kindForPaintType = (type: string): GradientKind =>
   (Object.keys(PAINT_TYPES) as GradientKind[]).find((kind) => PAINT_TYPES[kind] === type) ?? 'linear'
+
+/** `LINEAR`, `GRADIENT_LINEAR` or `linear` → `linear`; `undefined` when the name says nothing. */
+const kindForPaintName = (value: unknown): GradientKind | undefined => (typeof value === 'string' ? PAINT_KIND_NAMES[value.trim().toLowerCase()] : undefined)
 
 const asTransform = (value: unknown): GradientTransform | null => {
   if (!Array.isArray(value) || value.length < 2) return null
@@ -210,34 +235,59 @@ export interface GradientMotion {
   transform?: GradientTransform
 }
 
+interface GradientGeometry {
+  angle?: number
+  transform?: GradientTransform
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null => (value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null)
+
+/** `start`/`end` handle positions → a transform, `null` when the block has none. */
+const handlesOf = (value: unknown): GradientTransform | null => {
+  const record = asRecord(value)
+  if (record === null) return null
+
+  const { start, end } = record
+  return Array.isArray(start) && Array.isArray(end) ? handlesToTransform(start, end) : null
+}
+
+/** Geometry inside `$extensions["com.figma"]`: the matrix we write, else `angle`, else `start`/`end`. */
+const figmaGeometry = (record: Record<string, unknown>): GradientGeometry => {
+  const transform = asTransform(record.gradientTransform)
+  if (transform !== null) return { transform }
+  if (record.angle !== undefined) return { angle: parseAngle(record.angle) }
+
+  const handles = handlesOf(record)
+  return handles === null ? {} : { transform: handles }
+}
+
+/** Geometry inside `$extensions["org.designsystem.motion"]`, the editor's own block. */
+const motionGeometry = (record: Record<string, unknown>): GradientGeometry => {
+  const transform = asTransform(record.figmaGradientTransform)
+  if (transform !== null) return { transform }
+  if (record.angle !== undefined) return { angle: parseAngle(record.angle) }
+
+  const handles = handlesOf(record.figmaHandlePositions)
+  return handles === null ? {} : { transform: handles }
+}
+
 /**
- * Reads a gradient's geometry. An exact transform wins, because a previous export wrote it;
- * then the CSS angle; then legacy handle positions, because the editor's dialog wrote
- * `[0, 0] → [1, 1]` whatever the angle was, so they are the last resort.
+ * Reads a gradient's kind and geometry. `$extensions["com.figma"]` comes first — it is the
+ * namespace Figma tools and people edit — then the editor's own `org.designsystem.motion`,
+ * where handle positions are the last resort because the dialog wrote `[0, 0] → [1, 1]`
+ * whatever the angle was. Inside a block the exact matrix beats an angle, which beats handles.
+ *
+ * `$extensions["studio.tokens"]` is not read: it carries the same facts as the angle here.
  */
 export const readGradientMotion = (gradient: GradientValue): GradientMotion => {
-  const motion = gradient.extensions?.[MOTION_KEY]
-  if (motion === null || typeof motion !== 'object') return { kind: 'linear' }
+  const figma = asRecord(gradient.extensions?.[FIGMA_KEY])
+  const motion = asRecord(gradient.extensions?.[MOTION_KEY])
+  const kind = kindForPaintName(figma?.['type']) ?? kindForPaintName(motion?.['type']) ?? 'linear'
 
-  const record = motion as Record<string, unknown>
-  const named = typeof record.type === 'string' ? record.type.toLowerCase() : ''
-  const kind: GradientKind = named === 'radial' || named === 'angular' || named === 'diamond' ? named : 'linear'
+  const fromFigma = figma === null ? {} : figmaGeometry(figma)
+  if (fromFigma.transform !== undefined || fromFigma.angle !== undefined) return { kind, ...fromFigma }
 
-  const transform = asTransform(record.figmaGradientTransform)
-  if (transform !== null) return { kind, transform }
-
-  if (record.angle !== undefined) return { kind, angle: parseAngle(record.angle) }
-
-  const handles = record.figmaHandlePositions
-  if (handles !== null && typeof handles === 'object') {
-    const { start, end } = handles as Record<string, unknown>
-    if (Array.isArray(start) && Array.isArray(end)) {
-      const legacy = handlesToTransform(start, end)
-      if (legacy !== null) return { kind, transform: legacy }
-    }
-  }
-
-  return { kind }
+  return { kind, ...(motion === null ? {} : motionGeometry(motion)) }
 }
 
 /** The editor's gradient → the paint Figma stores, or a warning saying why it cannot. */
@@ -266,12 +316,23 @@ export const paintToGradient = (paint: FigmaGradientPaintSnapshot, context: Grad
 
   const kind = kindForPaintType(paint.type)
   const angle = kind === 'linear' ? transformToAngle(paint.gradientTransform) : null
+  const handles = transformToHandles(paint.gradientTransform)
+
+  // The editor's block keeps what its CSS needs; the `com.figma` block is the same geometry in
+  // the shape people and other tools read, with the exact matrix so a round trip is lossless.
   const motion: Record<string, unknown> = { type: kind, figmaGradientTransform: paint.gradientTransform }
   if (angle !== null) motion.angle = formatAngle(angle)
 
+  const figma: Record<string, unknown> = { type: PAINT_TYPE_NAMES[kind], gradientTransform: paint.gradientTransform }
+  if (angle !== null) figma.angle = angle
+  if (handles !== null) {
+    figma.start = handles.start
+    figma.end = handles.end
+  }
+
   return {
     stops: paint.gradientStops.map((stop) => ({ color: context.fromColor(stop.color), position: clamp01(stop.position) })),
-    extensions: { [MOTION_KEY]: motion },
+    extensions: { [MOTION_KEY]: motion, [FIGMA_KEY]: figma },
   }
 }
 

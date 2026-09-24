@@ -335,6 +335,58 @@ describe('code.ts', () => {
     expect(exported.json).toContain('"$type": "gradient"')
   })
 
+  it('keeps a semantic gradient through a sync and back', async () => {
+    await loadPlugin()
+    const file = {
+      brands: {
+        demo: {
+          light: {
+            primitives: {
+              gradient: {
+                sunset: {
+                  $type: 'gradient',
+                  $value: [
+                    { color: '#D4BF8E', position: 0 },
+                    { color: '#FFFFFF', position: 1 },
+                  ],
+                },
+              },
+            },
+            semantic: {
+              'surface-brand-gradient': {
+                $type: 'gradient',
+                $value: [
+                  { color: '#7C3AED', position: 0 },
+                  { color: '#FFFFFF', position: 1 },
+                ],
+                $extensions: { 'com.figma': { type: 'LINEAR', angle: 45 } },
+              },
+            },
+          },
+        },
+      },
+    }
+
+    await send({ type: 'apply-sync', json: file, options: syncOptions }, (message) => message.type === 'sync-applied')
+    expect(store.variableIn('demo', 'semantic/surface-brand-gradient')?.resolvedType).toBe('STRING')
+    // Only the primitive gradient becomes a usable paint style.
+    expect(store.paintStyles).toHaveLength(1)
+    expect(store.styleNamed('demo/light/primitives/gradient/sunset')).toBeDefined()
+
+    const exported = await send({ type: 'export-tokens' }, (message) => message.type === 'tokens-exported')
+    if (exported?.type !== 'tokens-exported') throw new Error('expected tokens-exported')
+
+    const parsed = JSON.parse(exported.json) as {
+      brands: { demo: { light: { semantic: Record<string, { $type: string; $value: unknown; $extensions?: Record<string, unknown> }> } } }
+    }
+    const token = parsed.brands.demo.light.semantic['surface-brand-gradient']
+    const figma = token === undefined ? undefined : (token.$extensions?.['com.figma'] as Record<string, unknown> | undefined)
+
+    expect(token?.$type).toBe('gradient')
+    expect(Array.isArray(token?.$value)).toBe(true)
+    expect(figma?.['angle']).toBe(45)
+  })
+
   it('prunes the gradient styles a file no longer has', async () => {
     await loadPlugin()
     await send({ type: 'apply-sync', json: gradientTokens, options: syncOptions }, (message) => message.type === 'sync-applied')

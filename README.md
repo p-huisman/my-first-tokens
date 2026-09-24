@@ -263,8 +263,10 @@ keep re-syncs idempotent.
 Gradients are the one token type Figma cannot hold in a variable. The plugin writes each one as a
 `STRING` variable carrying this JSON **and** as a paint style named
 `<brand>/<theme>/primitives/gradient/<key>`, so a gradient can be applied to a layer in Figma and still
-round-trips into the editor unchanged. The plugin README describes the geometry, the prune rules and how
-an edit made in Figma wins on the way back.
+round-trips into the editor unchanged. A gradient on a _semantic_ or _component_ token stays a variable
+(an alias to the gradient primitive, or the token JSON when it is written out) — only the primitive group
+gets a style. The plugin README describes the `com.figma`/`org.designsystem.motion` geometry, the merge
+rules and how an edit made in Figma wins on the way back.
 
 A file with a duplicated key (the same key twice in one object) is reported when it is loaded, by name
 and line, because `JSON.parse` keeps the last occurrence and silently drops the earlier ones — a theme

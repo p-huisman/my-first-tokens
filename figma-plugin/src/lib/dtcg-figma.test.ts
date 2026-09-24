@@ -10,6 +10,59 @@ import type { FigmaSnapshot } from './types.js'
 
 const EMPTY: FigmaSnapshot = { collections: [], variables: [], styles: [] }
 
+/** A file with a gradient primitive and a semantic token that carries a gradient of its own. */
+const namedGradientFile = {
+  brands: {
+    demo: {
+      light: {
+        primitives: {
+          gradient: {
+            sunset: {
+              $type: 'gradient',
+              $value: [
+                { color: '#D4BF8E', position: 0 },
+                { color: '#FFFFFF', position: 1 },
+              ],
+            },
+          },
+        },
+        semantic: {
+          'surface-brand-gradient': {
+            $type: 'gradient',
+            $value: [
+              { color: '#7C3AED', position: 0 },
+              { color: '#FFFFFF', position: 1 },
+            ],
+            $extensions: { 'com.figma': { type: 'LINEAR', angle: 45 } },
+          },
+        },
+      },
+    },
+  },
+}
+
+/** The same, with the geometry hand-authored in `com.figma` (paint type, angle, handles, extra). */
+const authoredGradientFile = {
+  brands: {
+    demo: {
+      light: {
+        primitives: {
+          gradient: {
+            sunset: {
+              $type: 'gradient',
+              $value: [
+                { color: '#D4BF8E', position: 0 },
+                { color: '#FFFFFF', position: 1 },
+              ],
+              $extensions: { 'com.figma': { type: 'LINEAR', angle: 45, start: [0, 0], end: [1, 1], note: 'author' } },
+            },
+          },
+        },
+      },
+    },
+  },
+}
+
 /** Plans a sync and applies it to the fake document, like the plugin does for real. */
 const syncInto = (store: FakeFigmaStore, json: unknown, options: DtcgToFigmaOptions = {}) => {
   const plan = planDtcgToFigma(json, store.snapshot(), options)
@@ -17,7 +70,7 @@ const syncInto = (store: FakeFigmaStore, json: unknown, options: DtcgToFigmaOpti
   return plan
 }
 
-type TokenNode = { $value?: unknown; $extensions?: Record<string, Record<string, unknown>> }
+type TokenNode = { $value?: unknown; $type?: unknown; $extensions?: Record<string, Record<string, unknown>> }
 
 /** Reads a token out of an exported file by its token path, for assertions. */
 const tokenNode = (file: DtcgTokenFile, brandId: string, theme: string, path: string): TokenNode | undefined => {
@@ -139,6 +192,18 @@ describe('planDtcgToFigma', () => {
     expect(plan.styles).toEqual([])
     expect(plan.warnings.join(' ')).toContain('stop 1 ("nope") is not a colour')
     expect(plan.variables.map((variable) => variable.name)).toEqual(['primitives/gradient/odd'])
+  })
+
+  it('gives a semantic gradient a STRING variable and no paint style', () => {
+    const plan = planDtcgToFigma(namedGradientFile, EMPTY)
+
+    expect(plan.variables.map((variable) => [variable.name, variable.resolvedType])).toEqual([
+      ['primitives/gradient/sunset', 'STRING'],
+      ['semantic/surface-brand-gradient', 'STRING'],
+    ])
+    // Only the primitive describes a reusable paint; the semantic token expresses purpose.
+    expect(plan.styles.map((style) => style.name)).toEqual(['demo/light/primitives/gradient/sunset'])
+    expect(plan.warnings.join(' ')).toContain('"semantic/surface-brand-gradient" in "demo" is a gradient on a semantic or component token')
   })
 
   it('explains a file without brands instead of planning nothing silently', () => {
@@ -403,6 +468,38 @@ describe('figmaToDtcg', () => {
     expect(file.$description).toBe('From Figma')
     expect(file.$metadata).toEqual({ generatedAt: '2026-01-01T00:00:00.000Z' })
     expect(tokenNode(file, 'northstar', 'light', 'primitives/color/white')?.$extensions).toBeUndefined()
+  })
+
+  it('brings a semantic gradient back as a gradient, not as a JSON blob', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, namedGradientFile)
+
+    const exported = figmaToDtcg(store.snapshot())
+    const node = tokenNode(exported.file, 'demo', 'light', 'semantic/surface-brand-gradient')
+    const model = fromDesignTokensFormat(exported.file)?.brands[0]?.themes.light?.semantic?.['surface-brand-gradient']
+
+    expect(node?.$type).toBe('gradient')
+    expect(model).toMatchObject({
+      stops: [
+        { color: '#7C3AED', position: 0 },
+        { color: '#FFFFFF', position: 1 },
+      ],
+    })
+    // The geometry the file authored travels with the token.
+    expect((node?.$extensions?.['com.figma'] as Record<string, unknown> | undefined)?.['angle']).toBe(45)
+  })
+
+  it('keeps hand-authored `com.figma` geometry next to the variable ids it injects', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, authoredGradientFile)
+
+    const node = tokenNode(figmaToDtcg(store.snapshot()).file, 'demo', 'light', 'primitives/gradient/sunset')
+    const figma = node?.$extensions?.['com.figma'] as Record<string, unknown>
+
+    // Merged, not replaced: everything the file said is still there, plus the variable metadata.
+    expect(figma).toMatchObject({ type: 'LINEAR', angle: 45, start: [0, 0], end: [1, 1], note: 'author' })
+    expect(figma['variableId']).toBeTypeOf('string')
+    expect(figma['resolvedType']).toBe('STRING')
   })
 
   it('ignores collections without variables', () => {

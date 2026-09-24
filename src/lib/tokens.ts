@@ -8,12 +8,33 @@ const MAX_REFERENCE_DEPTH = 32
 const REFERENCE_PATTERN = /^\{(.+)\}$/
 const DIMENSION_PATTERN = /^-?(?:\d+\.?\d*|\.\d+)(px|rem|em|%)$/
 
+/**
+ * `45`, `'45'` and `'45deg'` all become `45deg`, because a hand-written `com.figma` block
+ * carries a bare number. Anything unusable keeps the CSS default.
+ */
+const gradientAngle = (...candidates: unknown[]): string => {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return `${candidate}deg`
+    if (typeof candidate !== 'string' || candidate.trim() === '') continue
+
+    const text = candidate.trim()
+    return /^-?\d+(\.\d+)?$/.test(text) ? `${text}deg` : text
+  }
+
+  return '90deg'
+}
+
+/** The `angle` of an extension block, if it has one. */
+const angleOf = (block: unknown): unknown =>
+  block !== null && typeof block === 'object' && 'angle' in block ? (block as { angle?: unknown }).angle : undefined
+
 const gradientToCss = (value: unknown): string | null => {
   if (value === null || typeof value !== 'object' || !('stops' in value)) return null
   const gradient = value as { stops?: Array<{ color?: string; position?: number }>; extensions?: Record<string, unknown> }
   if (!Array.isArray(gradient.stops) || gradient.stops.length < 2) return null
-  const motion = gradient.extensions?.['org.designsystem.motion']
-  const angle = motion && typeof motion === 'object' && 'angle' in motion ? String(motion.angle) : '90deg'
+
+  // The editor's own block wins, then the geometry a Figma-aware file carries in `com.figma`.
+  const angle = gradientAngle(angleOf(gradient.extensions?.['org.designsystem.motion']), angleOf(gradient.extensions?.['com.figma']))
   return `linear-gradient(${angle}, ${gradient.stops.map((stop) => `${stop.color ?? FALLBACK_COLOR} ${(stop.position ?? 0) * 100}%`).join(', ')})`
 }
 

@@ -103,6 +103,22 @@ export const toLocalReference = (value: unknown, brandId: string, themeName: str
   return reference
 }
 
+/**
+ * A DTCG gradient token → the editor's model. A gradient can sit in any section, so the two
+ * primitive branches and the semantic/component one all rebuild it through this helper;
+ * `null` means "not a gradient", and the caller falls back to the token's `$value`.
+ */
+const gradientValueOf = (token: unknown, brandId: string, themeName: string): GradientValue | null =>
+  isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
+    ? {
+        stops: token.$value.filter(isRecord).map((stop) => ({
+          color: toLocalReference(stop.color, brandId, themeName) as string,
+          position: Number(stop.position ?? 0),
+        })),
+        extensions: isRecord(token.$extensions) ? token.$extensions : undefined,
+      }
+    : null
+
 /** `{primitives.x}` → `{brands.brand.theme.primitives.x}`; absolute refs are left alone. */
 export const toAbsoluteReference = (value: TokenValue, brandId: string, themeName: string): TokenValue => {
   if (typeof value !== 'string' || !value.startsWith('{') || !value.endsWith('}')) return value
@@ -167,12 +183,21 @@ const toGradientColor = (value: string, brandId: string, themeName: string): str
  * looked up anywhere in the path instead of only at the start.
  */
 const aliasType = (value: TokenValue): 'color' | 'dimension' | 'gradient' => {
+  // A gradient is a gradient wherever it lives: a semantic or component token can carry one too.
+  if (isRecord(value) && Array.isArray(value.stops)) return 'gradient'
   if (typeof value !== 'string' || !value.startsWith('{')) return 'color'
 
   const reference = value.slice(1, -1)
   if (/(^|\.)primitives\.gradient\./.test(reference)) return 'gradient'
   return /(^|\.)primitives\.(spatial|structural)\./.test(reference) ? 'dimension' : 'color'
 }
+
+/**
+ * A gradient's `$extensions` (the Figma paint geometry and the editor's CSS hints) belong on
+ * the token wherever it lives, so a semantic gradient keeps its angle like a primitive one.
+ */
+const gradientExtensions = (value: TokenValue, type: string): Record<string, unknown> | undefined =>
+  type === 'gradient' && isRecord(value) && isRecord(value.extensions) ? value.extensions : undefined
 
 /**
  * Rewrites bare colours on well-known semantic/component keys into the reference
@@ -219,7 +244,15 @@ export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
                   Object.fromEntries(
                     Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => {
                       const type = aliasType(value)
-                      return [key, { $value: toTypedDtcgValue(value, brand.id, themeName, type), $type: type }]
+                      const extensions = gradientExtensions(value, type)
+                      return [
+                        key,
+                        {
+                          $value: toTypedDtcgValue(value, brand.id, themeName, type),
+                          $type: type,
+                          ...(extensions === undefined ? {} : { $extensions: extensions }),
+                        },
+                      ]
                     }),
                   ),
                 ]
@@ -231,21 +264,18 @@ export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
                   Object.entries((values ?? {}) as PrimitiveTokens).map(([groupName, group]) => [
                     groupName,
                     Object.fromEntries(
-                      Object.entries(group ?? {}).map(([key, value]): [string, DtcgToken] => [
-                        key,
-                        {
-                          $value: toTypedDtcgValue(
-                            value,
-                            brand.id,
-                            themeName,
-                            groupName === 'color' ? 'color' : groupName === 'gradient' ? 'gradient' : 'dimension',
-                          ),
-                          $type: groupName === 'color' ? 'color' : groupName === 'gradient' ? 'gradient' : 'dimension',
-                          ...(groupName === 'gradient' && typeof value === 'object' && value !== null && 'extensions' in value
-                            ? { $extensions: value.extensions as Record<string, unknown> }
-                            : {}),
-                        },
-                      ]),
+                      Object.entries(group ?? {}).map(([key, value]): [string, DtcgToken] => {
+                        const type = groupName === 'color' ? 'color' : groupName === 'gradient' ? 'gradient' : 'dimension'
+                        const extensions = gradientExtensions(value, type)
+                        return [
+                          key,
+                          {
+                            $value: toTypedDtcgValue(value, brand.id, themeName, type),
+                            $type: type,
+                            ...(extensions === undefined ? {} : { $extensions: extensions }),
+                          },
+                        ]
+                      }),
                     ),
                   ]),
                 ),
@@ -316,16 +346,7 @@ const importDtcgBrands = (brandMap: Record<string, unknown>): ImportResult => {
           for (const [tokenKey, token] of Object.entries(section)) {
             if (tokenKey.startsWith('$')) continue
             const rawValue = isRecord(token) ? token.$value : token
-            const gradientValue =
-              isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
-                ? {
-                    stops: token.$value.filter(isRecord).map((stop) => ({
-                      color: toLocalReference(stop.color, id, themeName) as string,
-                      position: Number(stop.position ?? 0),
-                    })),
-                    extensions: isRecord(token.$extensions) ? token.$extensions : undefined,
-                  }
-                : rawValue
+            const gradientValue = gradientValueOf(token, id, themeName) ?? rawValue
             if (rawValue === undefined) {
               warnings.push(`Skipped "${id}.${themeName}.${sectionName}.${tokenKey}" — the token has no $value.`)
               continue
@@ -344,16 +365,7 @@ const importDtcgBrands = (brandMap: Record<string, unknown>): ImportResult => {
             for (const [tokenKey, token] of Object.entries(group)) {
               if (tokenKey.startsWith('$')) continue
               const rawValue = isRecord(token) ? token.$value : token
-              const gradientValue =
-                isRecord(token) && token.$type === 'gradient' && Array.isArray(token.$value)
-                  ? {
-                      stops: token.$value.filter(isRecord).map((stop) => ({
-                        color: toLocalReference(stop.color, id, themeName) as string,
-                        position: Number(stop.position ?? 0),
-                      })),
-                      extensions: isRecord(token.$extensions) ? token.$extensions : undefined,
-                    }
-                  : rawValue
+              const gradientValue = gradientValueOf(token, id, themeName) ?? rawValue
               if (rawValue === undefined) continue
               groupTokens[tokenKey] = toLocalReference(normalizeImportedValue(gradientValue), id, themeName) as TokenValue
             }
@@ -372,7 +384,9 @@ const importDtcgBrands = (brandMap: Record<string, unknown>): ImportResult => {
             continue
           }
 
-          tokens[tokenKey] = toLocalReference(normalizeImportedValue(rawValue), id, themeName) as TokenValue
+          // A semantic or component token can hold a gradient too.
+          const gradientValue = gradientValueOf(token, id, themeName) ?? rawValue
+          tokens[tokenKey] = toLocalReference(normalizeImportedValue(gradientValue), id, themeName) as TokenValue
         }
 
         sections[sectionName] = tokens

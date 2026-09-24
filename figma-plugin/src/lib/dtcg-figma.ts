@@ -725,11 +725,19 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
       record(token, plan.brand.id, name, undefined, existing, values)
     }
 
-    // Gradients: one paint style per brand *and* theme, because a style cannot hold modes.
-    // The STRING variable above carries the data; this is the part a designer can apply.
+    // Gradients: one paint style per brand *and* theme, for the *primitive* group — a style
+    // cannot hold modes, and a semantic/component gradient expresses purpose, so it stays a
+    // variable (an alias to the primitive, or the token JSON when it is a literal).
     const styleKeys = new Set<string>()
+    const namedGradients = [...plan.pending].filter(([, token]) => token.kind === 'gradient' && token.path.section !== 'primitives')
+    if (namedGradients.length > 0) {
+      warnings.push(
+        `${namedGradients.map(([name]) => `"${name}"`).join(', ')} in "${plan.brand.name}" ${namedGradients.length === 1 ? 'is a gradient on a semantic or component token' : 'are gradients on semantic or component tokens'}: they travel as STRING variables (an alias when they point at a gradient primitive), and only "primitives/gradient/*" gets a paint style.`,
+      )
+    }
+
     for (const [name, token] of plan.pending) {
-      if (token.kind !== 'gradient') continue
+      if (token.kind !== 'gradient' || token.path.section !== 'primitives') continue
 
       for (const [themeName, rawValue] of token.values) {
         const gradient = asGradient(rawValue)
@@ -952,12 +960,15 @@ const serializeValue = (raw: FigmaValue, context: SerializeContext): SerializedV
   }
 
   const text = String(value)
-  if (context.path.group !== 'gradient') return { value: text }
-
+  // Any STRING variable can hold a gradient, not just `primitives/gradient/*`: a semantic or
+  // component token that carries one would otherwise come back as a JSON blob instead of a
+  // gradient. Anything that does not parse stays plain text.
   const gradient = gradientFromText(text)
-  return gradient === null
+  if (gradient !== null) return { value: gradient }
+
+  return context.path.group === 'gradient'
     ? { value: text, warning: `Read ${label} as plain text: it does not hold the gradient JSON this plugin writes.` }
-    : { value: gradient }
+    : { value: text }
 }
 
 /** Adds `$extensions["com.figma"]` to every exported token, keyed by brand/theme/path. */
@@ -987,7 +998,13 @@ const injectThemeExtensions = (
 
     const path = fromSegments([...segments, key])
     const extension = path === null ? undefined : extensions.get(`${brandId}|${themeName}|${toVariableName(path)}`)
-    if (extension !== undefined) child.$extensions = { ...(isRecord(child.$extensions) ? child.$extensions : {}), 'com.figma': extension }
+    if (extension !== undefined) {
+      // Merge inside `com.figma` rather than replacing it: a gradient token keeps the paint
+      // geometry it was written with (and anything hand-authored) next to the variable ids.
+      const existing = isRecord(child.$extensions) ? child.$extensions : {}
+      const figma = isRecord(existing['com.figma']) ? existing['com.figma'] : {}
+      child.$extensions = { ...existing, 'com.figma': { ...figma, ...extension } }
+    }
   }
 }
 

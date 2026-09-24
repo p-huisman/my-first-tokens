@@ -148,15 +148,47 @@ value in the same sync:
 - Styles have no modes, so a gradient is one style per **brand and theme** in both layouts; the brand,
   theme and token key live in shared plugin data (`org.tokensync`), which is what keeps a re-sync from
   duplicating a style and what makes pruning safe — only styles carrying a token are ever removed.
+- **Only `primitives.gradient.*` gets a style.** A semantic or component token that carries a gradient
+  expresses purpose, so it stays a `STRING` variable: an alias when it points at a gradient primitive
+  (lossless), or the token JSON when the gradient is written out in the token itself. The sync notes
+  which tokens those are.
 - Stop colours that are `{references}` are resolved in the theme being planned (so a gradient built from
   colour tokens draws with those colours); the variable keeps the reference, so the editor round trip is
   unchanged.
 - Geometry is converted in `src/lib/gradient-paint.ts`: CSS `0deg` points to the top and grows clockwise,
-  and the span is `|sin a| + |cos a|` so a diagonal reaches corner to corner as CSS does. An export stores
-  the exact matrix as `figmaGradientTransform` in the gradient's `org.designsystem.motion` extension, so
-  re-importing reproduces the identical paint even if a file was created elsewhere. Legacy
-  `figmaHandlePositions` are still read, but only as a last resort (the editor's dialog always wrote
-  `[0,0] → [1,1]`).
+  and the span is `|sin a| + |cos a|` so a diagonal reaches corner to corner as CSS does.
+
+#### Where the geometry lives
+
+An export writes the same geometry in two namespaces, and a sync reads whichever it finds, in this order:
+
+| Order | Key                                                             | Meaning                                                                                   |
+| ----- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1     | `$extensions["com.figma"].gradientTransform`                    | the exact 2×3 matrix — lossless, what a sync writes                                       |
+| 2     | `$extensions["com.figma"].angle`, else `start`/`end`            | the readable form; `type` may be `LINEAR`/`RADIAL`/`ANGULAR`/`DIAMOND` (case-insensitive) |
+| 3     | `$extensions["org.designsystem.motion"].figmaGradientTransform` | older exports of this plugin                                                              |
+| 4     | `$extensions["org.designsystem.motion"].angle`                  | what the editor's CSS uses                                                                |
+| 5     | `$extensions["org.designsystem.motion"].figmaHandlePositions`   | legacy; the editor's dialog wrote `[0,0] → [1,1]` whatever the angle was                  |
+
+```json
+"gradient-primary": {
+  "$type": "gradient",
+  "$value": [
+    { "color": "#FF0000", "position": 0 },
+    { "color": "#0000FF", "position": 1 }
+  ],
+  "$extensions": {
+    "com.figma": { "type": "LINEAR", "angle": 45, "start": [0, 0], "end": [1, 1], "gradientTransform": [[0.5, -0.5, 0.5], [0.5, 0.5, 0]] },
+    "org.designsystem.motion": { "type": "linear", "angle": "45deg", "figmaGradientTransform": [[0.5, -0.5, 0.5], [0.5, 0.5, 0]] }
+  }
+}
+```
+
+A `com.figma` block is **merged**, never replaced: the variable ids a sync injects (`variableId`,
+`collectionId`, `modeId`, `resolvedType`, `scopes`) are added next to whatever the file already had, so
+hand-authored keys such as a `note` survive an export. `$extensions["studio.tokens"]` (Tokens Studio) is
+neither read nor written.
+
 - Reading back: an export prefers the gradient JSON stored on the style, and switches to the paint itself
   when the style no longer matches it — a gradient edited in Figma wins, with a note that the `STRING`
   variable still holds the previous value. A style whose brand/theme is not in the file is reported
