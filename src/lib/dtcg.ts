@@ -15,7 +15,7 @@ import type {
   TokenValue,
 } from './types.js'
 
-/** Well-known semantic/component tokens and the reference they are expected to carry. */
+/** Well-known semantic tokens and the reference the light theme is expected to carry. */
 const SEMANTIC_DEFAULTS: Record<string, string> = {
   'surface-page-default': 'primitives.color.gray50',
   'surface-panel-elevated': 'primitives.color.white',
@@ -28,28 +28,50 @@ const SEMANTIC_DEFAULTS: Record<string, string> = {
   'feedback-status-success': 'primitives.color.green500',
 }
 
-const COMPONENT_DEFAULTS: Record<string, string> = {
+/**
+ * What a dark theme changes: only *which* primitive a token points at. The primitives
+ * themselves are one set per brand (see `src/lib/model.ts`), so switching theme can never
+ * change a primitive value — it re-points the semantic tokens to other steps of it.
+ */
+const DARK_SEMANTIC_DEFAULTS: Record<string, string> = {
+  'surface-page-default': 'primitives.color.gray900',
+  'surface-panel-elevated': 'primitives.color.gray700',
+  'content-text-default': 'primitives.color.white',
+  'content-text-muted': 'primitives.color.gray200',
+  'border-control-subtle': 'primitives.color.gray500',
+}
+
+export const COMPONENT_DEFAULTS: Record<string, string> = {
   buttonPrimaryBg: 'semantic.action-brand-primary',
   buttonPrimaryText: 'semantic.content-action-default',
-  buttonSecondaryBg: 'primitives.color.gray50',
-  buttonSecondaryText: 'semantic.content-text-default',
+  buttonSecondaryBg: 'semantic.action-brand-secondary',
+  buttonSecondaryText: 'semantic.content-action-default',
   cardBg: 'semantic.surface-panel-elevated',
   cardBorder: 'semantic.border-control-subtle',
   focusRing: 'semantic.action-brand-primary',
 }
 
-/** The default token set, shared by the seed data and the importer. */
+export type ThemeMode = 'light' | 'dark'
+
+/** Theme names are free-form; the one mode the model treats as dark is a name containing `dark`. */
+export const themeModeOf = (themeName: string): ThemeMode => (themeName.trim().toLowerCase().includes('dark') ? 'dark' : 'light')
+
+/** The semantic references a theme of this mode is expected to carry. */
+export const semanticReferences = (mode: ThemeMode): Record<string, string> =>
+  mode === 'dark' ? { ...SEMANTIC_DEFAULTS, ...DARK_SEMANTIC_DEFAULTS } : { ...SEMANTIC_DEFAULTS }
+
+/** The light default token set, shared by the seed data and the importer. */
 export const DEFAULT_REFERENCES = {
   semantic: SEMANTIC_DEFAULTS,
   component: COMPONENT_DEFAULTS,
 } as const
 
 /**
- * The expected reference for a known token key. Returns `undefined` for unknown
- * keys so callers can keep the literal colour instead of guessing.
+ * The expected reference for a known token key. Returns `undefined` for unknown keys so
+ * callers can keep the literal colour instead of guessing; `mode` picks the theme's step.
  */
-export const defaultReferenceFor = (section: string, key: string): string | undefined => {
-  if (section === 'semantic') return SEMANTIC_DEFAULTS[key]
+export const defaultReferenceFor = (section: string, key: string, mode: ThemeMode = 'light'): string | undefined => {
+  if (section === 'semantic') return semanticReferences(mode)[key]
   if (section === 'component') return COMPONENT_DEFAULTS[key]
   return undefined
 }
@@ -158,8 +180,9 @@ const aliasType = (value: TokenValue): 'color' | 'dimension' | 'gradient' => {
  * previous behaviour replaced them with an unrelated primitive.
  */
 export const normalizeBrand = (brand: Brand): Brand => {
-  for (const theme of Object.values(brand.themes)) {
+  for (const [themeName, theme] of Object.entries(brand.themes)) {
     if (theme === undefined) continue
+    const mode = themeModeOf(themeName)
 
     for (const section of ['semantic', 'component'] as const satisfies readonly SectionName[]) {
       const tokens = theme[section]
@@ -167,7 +190,7 @@ export const normalizeBrand = (brand: Brand): Brand => {
 
       for (const [key, currentValue] of Object.entries(tokens)) {
         if (typeof currentValue !== 'string' || !isValidColorInput(currentValue)) continue
-        const reference = defaultReferenceFor(section, key)
+        const reference = defaultReferenceFor(section, key, mode)
         if (reference !== undefined) tokens[key] = `{${reference}}`
       }
     }

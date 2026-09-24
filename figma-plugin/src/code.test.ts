@@ -376,8 +376,8 @@ describe('code.ts', () => {
     expect(reply.report.warnings.join(' ')).toContain('Limited to 1 modes only')
     expect(reply.report.warnings.join(' ')).toContain('One collection per brand and theme')
     // And the note says what was lost: nothing of a refused theme is written.
-    expect(reply.report.refused).toEqual({ modes: 2, values: 78 })
-    expect(reply.report.warnings[0]).toContain('its 39 planned values were skipped')
+    expect(reply.report.refused).toEqual({ modes: 2, values: 80 })
+    expect(reply.report.warnings[0]).toContain('its 40 planned values were skipped')
 
     const collection = store.collectionNamed('northstar')
     expect(collection?.modes.map((mode) => mode.name)).toEqual(['light'])

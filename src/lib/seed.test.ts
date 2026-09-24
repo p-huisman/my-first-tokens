@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { checkBrandModel } from './model.js'
 import { createDefaultBrands, NEW_BRAND_PALETTE, seedBrand, toBrandId, uniqueBrandId } from './seed.js'
 import { collectTokenIssues, resolveTokenValue } from './tokens.js'
 
@@ -20,23 +21,33 @@ describe('uniqueBrandId', () => {
 })
 
 describe('seedBrand', () => {
-  it('honours the palette instead of hardcoding canvases', () => {
+  it('honours the palette, and gives every theme the same primitives', () => {
     const brand = seedBrand('North Star', {
       primary: '#111111',
       secondary: '#222222',
       canvasLight: '#F0F0F0',
-      textStrongLight: '#0A0A0A',
       canvasDark: '#010101',
-      textStrongDark: '#FEFEFE',
+      textStrongLight: '#0A0A0A',
     })
 
     expect(brand.id).toBe('north-star')
     expect(brand.themes.light?.primitives?.color?.brandPrimary500).toBe('#111111')
     expect(brand.themes.light?.primitives?.color?.brandSecondary500).toBe('#222222')
+
+    // One primitive set per brand: light and dark hold the same keys and values.
+    expect(brand.themes.light?.primitives).toEqual(brand.themes.dark?.primitives)
     expect(brand.themes.light?.primitives?.color?.gray50).toBe('#F0F0F0')
+    expect(brand.themes.light?.primitives?.color?.gray900).toBe('#010101')
     expect(brand.themes.light?.primitives?.color?.gray950).toBe('#0A0A0A')
-    expect(brand.themes.dark?.primitives?.color?.gray50).toBe('#010101')
-    expect(brand.themes.dark?.primitives?.color?.gray950).toBe('#FEFEFE')
+  })
+
+  it('differs per theme only in which step the semantic tokens point at', () => {
+    const brand = seedBrand('North Star', NEW_BRAND_PALETTE)
+
+    expect(brand.themes.light?.semantic?.['surface-page-default']).toBe('{primitives.color.gray50}')
+    expect(brand.themes.dark?.semantic?.['surface-page-default']).toBe('{primitives.color.gray900}')
+    expect(brand.themes.dark?.semantic?.['content-text-default']).toBe('{primitives.color.white}')
+    expect(brand.themes.dark?.component).toEqual(brand.themes.light?.component)
   })
 })
 
@@ -45,6 +56,10 @@ describe('default brands', () => {
     const brands = createDefaultBrands()
     expect(brands).toHaveLength(3)
     expect(collectTokenIssues(brands)).toEqual([])
+  })
+
+  it('follow the model rules: one primitive set per brand, one set of token names', () => {
+    expect(checkBrandModel(createDefaultBrands())).toEqual([])
   })
 
   it('are cloned on every call', () => {
@@ -65,6 +80,7 @@ describe('default brands', () => {
   it('use the documented new-brand palette', () => {
     const brand = seedBrand('Demo', NEW_BRAND_PALETTE)
     expect(brand.themes.light?.primitives?.color?.gray50).toBe('#F8FAFC')
-    expect(brand.themes.dark?.primitives?.color?.gray50).toBe('#0F172A')
+    expect(brand.themes.light?.primitives?.color?.gray900).toBe('#0F172A')
+    expect(brand.themes.dark?.primitives?.color?.gray900).toBe('#0F172A')
   })
 })

@@ -3,6 +3,7 @@ import type { PropertyValues } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { fromDesignTokensFormat, normalizeBrand, toDesignTokensFormat } from './lib/dtcg.js'
 import { duplicateKeyNotes, toJsonText } from './lib/json.js'
+import { checkBrandModel } from './lib/model.js'
 import { NEW_BRAND_PALETTE, createDefaultBrands, seedBrand, uniqueBrandId } from './lib/seed.js'
 import { buildCssVariables, buildThemeStyle, collectTokenIssues, referenceOptions, toKebab } from './lib/tokens.js'
 import { hasPrimitives } from './lib/guards.js'
@@ -126,7 +127,9 @@ export class TokenSyncApp extends LitElement {
   private _applyBrands(brands: Brand[], warnings: string[] = []) {
     this.brands = brands.map((brand) => normalizeBrand(brand))
     this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
-    this.importWarnings = warnings
+    // The model rules (one primitive set per brand, one set of semantic/component names) are
+    // checked on every load, so an imported file cannot drift the way `public/tokens.json` did.
+    this.importWarnings = [...warnings, ...checkBrandModel(this.brands)]
     this.importIssues = collectTokenIssues(this.brands)
   }
 
@@ -891,6 +894,12 @@ export class TokenSyncApp extends LitElement {
       box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
     }
 
+    /* The card is part of the sample, so it reads the component tokens, not the app chrome. */
+    .preview-card {
+      border-color: var(--card-border);
+      background: var(--surface);
+    }
+
     .token-section {
       padding: 18px 18px 12px;
     }
@@ -981,15 +990,21 @@ export class TokenSyncApp extends LitElement {
     }
 
     .primary-action {
-      background: var(--primary);
-      color: #fff;
+      background: var(--button-primary-bg);
+      color: var(--button-primary-text);
       border: none;
     }
 
     .secondary-action {
-      background: var(--panel-bg);
-      color: var(--text);
-      border: 1px solid var(--border);
+      background: var(--button-secondary-bg);
+      color: var(--button-secondary-text);
+      border: none;
+    }
+
+    .primary-action:focus-visible,
+    .secondary-action:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
     }
 
     .mini-stats {

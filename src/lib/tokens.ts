@@ -135,7 +135,15 @@ const THEME_STYLE_TOKENS: Record<string, readonly [SectionName, string]> = {
   '--muted': ['semantic', 'content-text-muted'],
   '--border': ['semantic', 'border-control-subtle'],
   '--primary': ['semantic', 'action-brand-primary'],
+  // The preview card shows the component layer: its card and its two buttons read the
+  // component tokens, which in turn point at the semantic ones.
   '--surface': ['component', 'cardBg'],
+  '--card-border': ['component', 'cardBorder'],
+  '--button-primary-bg': ['component', 'buttonPrimaryBg'],
+  '--button-primary-text': ['component', 'buttonPrimaryText'],
+  '--button-secondary-bg': ['component', 'buttonSecondaryBg'],
+  '--button-secondary-text': ['component', 'buttonSecondaryText'],
+  '--focus-ring': ['component', 'focusRing'],
 }
 
 /** CSS custom properties that dress the app chrome in the selected theme. */

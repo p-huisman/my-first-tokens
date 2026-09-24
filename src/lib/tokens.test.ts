@@ -19,10 +19,20 @@ const theme: ThemeTokens = {
   semantic: {
     'surface-page-default': '{primitives.color.gray50}',
     'content-text-default': '{primitives.color.missing}',
+    'action-brand-primary': '{primitives.color.gray50}',
+    'action-brand-secondary': '{primitives.color.white}',
     colorLoop: '{semantic.colorLoopBack}',
     colorLoopBack: '{semantic.colorLoop}',
   },
-  component: { cardBg: '{semantic.surface-page-default}' },
+  component: {
+    cardBg: '{semantic.surface-page-default}',
+    cardBorder: '{semantic.surface-page-default}',
+    buttonPrimaryBg: '{semantic.action-brand-primary}',
+    buttonPrimaryText: '{semantic.action-brand-secondary}',
+    buttonSecondaryBg: '{semantic.surface-page-default}',
+    buttonSecondaryText: '{semantic.action-brand-secondary}',
+    focusRing: '{semantic.action-brand-secondary}',
+  },
 }
 
 describe('resolveToken', () => {
@@ -93,9 +103,24 @@ describe('buildThemeStyle', () => {
   it('builds the chrome variables from the theme', () => {
     const style = buildThemeStyle(theme)
     expect(style).toContain('--page-bg:#F8FAFC;')
-    expect(style).toContain('--surface:#F8FAFC;')
     expect(style).toContain('--text:#000000;')
     expect(style.endsWith(';')).toBe(true)
+  })
+
+  it('dresses the preview card from the component tokens, not the chrome ones', () => {
+    const style = buildThemeStyle(theme)
+    expect(style).toContain('--surface:#F8FAFC;')
+    expect(style).toContain('--card-border:#F8FAFC;')
+    expect(style).toContain('--button-primary-bg:#F8FAFC;')
+    expect(style).toContain('--button-primary-text:#FFFFFF;')
+    expect(style).toContain('--button-secondary-bg:#F8FAFC;')
+    expect(style).toContain('--button-secondary-text:#FFFFFF;')
+    expect(style).toContain('--focus-ring:#FFFFFF;')
+  })
+
+  it('falls back to the neutral colour when a component token is missing', () => {
+    const thin: ThemeTokens = { semantic: { 'surface-page-default': '#F8FAFC' }, component: {} }
+    expect(buildThemeStyle(thin)).toContain('--button-primary-text:#000000;')
   })
 
   it('is empty when there is no semantic section', () => {

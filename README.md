@@ -183,6 +183,7 @@ src/lib/                       pure, framework-free logic (fully unit tested)
   color.ts                     parsing/formatting/HSV/interpolation + DTCG colour reader
   tokens.ts                    reference resolution, link options, CSS + chrome variables
   dtcg.ts                      import/export, alias normalisation, default token set
+  model.ts                     the model rules: one primitive set per brand, shared token names
   json.ts                      duplicate-key detection + the verified JSON writer
   seed.ts                      embedded fallback brands + brand ids
   guards.ts / types.ts         runtime type guards and the shared model
@@ -208,6 +209,19 @@ resolution (including cycles), import/export round trips against the real token 
 data.
 
 ## Token model
+
+Two rules keep a token file consistent, and the editor checks both on every load (`src/lib/model.ts`,
+reported in the notes banner):
+
+- **A brand keeps one set of primitives.** Every theme of a brand has the same primitive keys with the
+  same values, because a brand's palette does not change with the mode. Light and dark differ only in
+  _which step_ a semantic token points at — dark `surface-page-default` → `primitives.color.gray900`,
+  light → `primitives.color.gray50`. A primitive missing from one theme is filled in automatically (there
+  is only one possible value); a primitive whose value differs per theme is reported and left alone,
+  because choosing one is a design decision.
+- **Semantic and component names are the same for every brand and theme**, so a token is called the same
+  thing everywhere and no theme silently loses one. Only the _values_ (the references) may differ per
+  brand and theme. A missing name is reported rather than invented.
 
 - **Brand** → **theme** (`light`, `dark`, or any theme name found in the file) → **section**
   (`primitives`, `semantic`, `component`, or an extra section in an imported file) → **token**.
