@@ -10,9 +10,11 @@ import type {
   FigmaCollectionSnapshot,
   FigmaResolvedType,
   FigmaSnapshot,
+  FigmaStyleSnapshot,
   FigmaValue,
   FigmaVariableSnapshot,
   PlannedValue,
+  StyleWrite,
   SyncPlan,
   VariableWrite,
 } from './types.js'
@@ -27,15 +29,17 @@ const figmaValue = (planned: PlannedValue, aliasId: string): FigmaValue => {
 export class FakeFigmaStore {
   private readonly collections: FigmaCollectionSnapshot[]
   private readonly variables: FigmaVariableSnapshot[]
+  private readonly styles: FigmaStyleSnapshot[]
   private counter = 0
 
-  constructor(snapshot: FigmaSnapshot = { collections: [], variables: [] }) {
+  constructor(snapshot: FigmaSnapshot = { collections: [], variables: [], styles: [] }) {
     this.collections = structuredClone(snapshot.collections)
     this.variables = structuredClone(snapshot.variables)
+    this.styles = structuredClone(snapshot.styles)
   }
 
   snapshot(): FigmaSnapshot {
-    return structuredClone({ collections: this.collections, variables: this.variables })
+    return structuredClone({ collections: this.collections, variables: this.variables, styles: this.styles })
   }
 
   collectionsNamed(name: string): FigmaCollectionSnapshot[] {
@@ -45,6 +49,22 @@ export class FakeFigmaStore {
   /** Live references, so a test can rename a variable the way a designer would. */
   variablesNamed(name: string): FigmaVariableSnapshot[] {
     return this.variables.filter((variable) => variable.name === name)
+  }
+
+  /** `figma.createPaintStyle`; a fresh style has no paints and no plugin data. */
+  addPaintStyle(name: string): FigmaStyleSnapshot {
+    const style: FigmaStyleSnapshot = { id: this.nextId('S:'), name, description: '', paints: [] }
+    this.styles.push(style)
+    return style
+  }
+
+  /** Live reference to a style by name, so a test can edit paints like a designer would. */
+  styleNamed(name: string): FigmaStyleSnapshot | undefined {
+    return this.styles.find((style) => style.name === name)
+  }
+
+  get paintStyles(): readonly FigmaStyleSnapshot[] {
+    return this.styles
   }
 
   /** `figma.variables.createVariableCollection` — one default mode, like Figma. */
@@ -95,11 +115,34 @@ export class FakeFigmaStore {
     // Names, types and literal values first: aliases need every variable to exist.
     for (const write of plan.variables) this.applyVariable(write, false)
     for (const write of plan.variables) this.applyVariable(write, true)
+    for (const write of plan.styles) this.applyStyle(write)
+
+    for (const removal of plan.styleRemovals) {
+      const index = this.styles.findIndex((style) => style.id === removal.styleId)
+      if (index !== -1) this.styles.splice(index, 1)
+    }
 
     for (const removal of plan.removals) {
       const index = this.variables.findIndex((variable) => variable.id === removal.variableId)
       if (index !== -1) this.variables.splice(index, 1)
     }
+  }
+
+  /**
+   * `figma.createPaintStyle` plus its paints. The brand, theme and gradient token live in
+   * shared plugin data on the real style; the fake mirrors them as snapshot fields.
+   */
+  private applyStyle(write: StyleWrite): void {
+    const existing = write.styleId === undefined ? undefined : this.styles.find((style) => style.id === write.styleId)
+    const style = existing ?? this.addPaintStyle(write.name)
+
+    style.name = write.name
+    if (write.description !== undefined) style.description = write.description
+    style.paints = [structuredClone(write.paint)]
+    style.brandId = write.brandId
+    style.theme = write.theme
+    style.token = write.token
+    style.gradient = structuredClone(write.gradient)
   }
 
   private applyCollection(write: CollectionWrite): void {

@@ -9,8 +9,8 @@
 import { figmaToDtcg, parseThemeCollectionName, planDtcgToFigma, summarizePlan } from './lib/dtcg-figma.js'
 import { DEFAULT_GITHUB_SETTINGS, DEFAULT_TOKENS_URL, commitTokensFile } from './lib/github.js'
 import type { FetchLike } from './lib/github.js'
-import { BRAND_KEY, BRAND_NAMESPACE, THEME_KEY } from './lib/plugin-data.js'
-import type { FigmaColor, FigmaSnapshot, FigmaValue, SyncLayout, SyncPlan, SyncReport } from './lib/types.js'
+import { BRAND_KEY, BRAND_NAMESPACE, GRADIENT_KEY, THEME_KEY, TOKEN_KEY } from './lib/plugin-data.js'
+import type { FigmaColor, FigmaGradientPaintSnapshot, FigmaSnapshot, FigmaValue, StyleWrite, SyncLayout, SyncPlan, SyncReport } from './lib/types.js'
 import type { PluginSettings, PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 import { toJsonText } from '../../src/lib/json.js'
 
@@ -42,11 +42,40 @@ const toSnapshotValue = (value: VariableValue): FigmaValue => {
 
 const brandIdOf = (collection: VariableCollection): string | undefined => collection.getSharedPluginData(BRAND_NAMESPACE, BRAND_KEY) || undefined
 const themeOf = (collection: VariableCollection): string | undefined => collection.getSharedPluginData(BRAND_NAMESPACE, THEME_KEY) || undefined
+const tokenOf = (style: PaintStyle): string | undefined => style.getSharedPluginData(BRAND_NAMESPACE, TOKEN_KEY) || undefined
+const gradientOf = (style: PaintStyle): unknown => {
+  const stored = style.getSharedPluginData(BRAND_NAMESPACE, GRADIENT_KEY)
+  if (stored === '') return undefined
+
+  try {
+    return JSON.parse(stored)
+  } catch {
+    return undefined
+  }
+}
+
+/** A gradient paint as the mapping wants it; anything else is left out of the snapshot. */
+const toPaintSnapshot = (paint: Paint): FigmaGradientPaintSnapshot | undefined => {
+  if (paint.type !== 'GRADIENT_LINEAR' && paint.type !== 'GRADIENT_RADIAL' && paint.type !== 'GRADIENT_ANGULAR' && paint.type !== 'GRADIENT_DIAMOND')
+    return undefined
+
+  const [first, second] = paint.gradientTransform
+  return {
+    type: paint.type,
+    gradientTransform: [
+      [first[0], first[1], first[2]],
+      [second[0], second[1], second[2]],
+    ],
+    gradientStops: paint.gradientStops.map((stop) => ({ position: stop.position, color: toFigmaColor(stop.color) })),
+  }
+}
 
 /** Everything the mapping needs to know about the current file. */
 const readSnapshot = async (): Promise<FigmaSnapshot> => {
   const collections = await figma.variables.getLocalVariableCollectionsAsync()
   const variables = await figma.variables.getLocalVariablesAsync()
+  // The manifest uses `documentAccess: "dynamic-page"`, so styles must be read asynchronously.
+  const paintStyles = await figma.getLocalPaintStylesAsync()
 
   return {
     collections: collections.map((collection) => ({
@@ -67,6 +96,17 @@ const readSnapshot = async (): Promise<FigmaSnapshot> => {
       codeSyntax: { ...variable.codeSyntax },
       valuesByMode: Object.fromEntries(Object.entries(variable.valuesByMode).map(([modeId, value]) => [modeId, toSnapshotValue(value)])),
     })),
+    // Only gradient paints travel through the mapping; anything else is left out.
+    styles: paintStyles.map((style) => ({
+      id: style.id,
+      name: style.name,
+      description: style.description,
+      paints: style.paints.map(toPaintSnapshot).filter((paint): paint is FigmaGradientPaintSnapshot => paint !== undefined),
+      brandId: style.getSharedPluginData(BRAND_NAMESPACE, BRAND_KEY) || undefined,
+      theme: style.getSharedPluginData(BRAND_NAMESPACE, THEME_KEY) || undefined,
+      token: tokenOf(style),
+      gradient: gradientOf(style),
+    })),
   }
 }
 
@@ -79,6 +119,7 @@ const emptyReport = (plan: SyncPlan): SyncReport => ({
   collections: { create: 0, update: 0 },
   modes: { add: 0, remove: 0, rename: 0 },
   variables: { create: 0, update: 0, rename: 0, recreate: 0, remove: 0, values: 0 },
+  styles: { create: 0, update: 0, remove: 0 },
   refused: { modes: 0, values: 0 },
   warnings: plan.warnings,
 })
@@ -89,6 +130,27 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 /** Collections are addressed by brand *and* theme: the layouts differ in which exist. */
 const collectionKey = (brandId: string, theme: string | undefined): string => `${brandId}|${theme ?? ''}`
 const variableKey = (brandId: string, theme: string | undefined, name: string): string => `${collectionKey(brandId, theme)}|${name}`
+
+/**
+ * Writes one gradient paint style. A gradient is a single paint, so the paint list is
+ * replaced wholesale, and the brand, theme and token go into shared plugin data — that is
+ * what lets a re-sync find the same style again instead of duplicating it, and what makes
+ * pruning safe (only styles that carry a token are ever removed).
+ */
+const applyStyle = async (write: StyleWrite, report: SyncReport): Promise<void> => {
+  const existing = write.styleId === undefined ? null : await figma.getStyleByIdAsync(write.styleId)
+  const style = existing?.type === 'PAINT' ? existing : figma.createPaintStyle()
+  if (existing?.type === 'PAINT') report.styles.update += 1
+  else report.styles.create += 1
+
+  style.name = write.name
+  if (write.description !== undefined) style.description = write.description
+  style.paints = [write.paint]
+  style.setSharedPluginData(BRAND_NAMESPACE, BRAND_KEY, write.brandId)
+  style.setSharedPluginData(BRAND_NAMESPACE, THEME_KEY, write.theme)
+  style.setSharedPluginData(BRAND_NAMESPACE, TOKEN_KEY, write.token)
+  style.setSharedPluginData(BRAND_NAMESPACE, GRADIENT_KEY, JSON.stringify(write.gradient))
+}
 
 /**
  * Writes a plan into the document. Literal values are set before aliases, because an
@@ -218,6 +280,15 @@ const applyPlan = async (plan: SyncPlan): Promise<SyncReport> => {
     const variable = await figma.variables.getVariableByIdAsync(removal.variableId)
     variable?.remove()
     report.variables.remove += 1
+  }
+
+  for (const write of plan.styles) await applyStyle(write, report)
+
+  for (const removal of plan.styleRemovals) {
+    const style = await figma.getStyleByIdAsync(removal.styleId)
+    if (style === null) continue
+    style.remove()
+    report.styles.remove += 1
   }
 
   return report

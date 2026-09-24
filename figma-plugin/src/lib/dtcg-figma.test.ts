@@ -8,7 +8,7 @@ import type { DtcgToFigmaOptions } from './dtcg-figma.js'
 import { FakeFigmaStore } from './fake-figma.js'
 import type { FigmaSnapshot } from './types.js'
 
-const EMPTY: FigmaSnapshot = { collections: [], variables: [] }
+const EMPTY: FigmaSnapshot = { collections: [], variables: [], styles: [] }
 
 /** Plans a sync and applies it to the fake document, like the plugin does for real. */
 const syncInto = (store: FakeFigmaStore, json: unknown, options: DtcgToFigmaOptions = {}) => {
@@ -86,12 +86,59 @@ describe('planDtcgToFigma', () => {
     expect(summary.variables.remove).toBe(0)
   })
 
-  it('skips gradients, which Figma has no variable type for', () => {
+  it('writes a gradient as a STRING variable plus a paint style per brand and theme', () => {
     const plan = planDtcgToFigma(gradientTokens, EMPTY)
+    const variable = plan.variables.find((candidate) => candidate.name === 'primitives/gradient/sunset')
 
-    expect(plan.warnings.join(' ')).toContain('no gradient variable type')
-    expect(plan.variables.some((variable) => variable.name.startsWith('primitives/gradient/'))).toBe(false)
-    expect(plan.variables.some((variable) => variable.name === 'primitives/color/white')).toBe(true)
+    expect(variable?.resolvedType).toBe('STRING')
+    expect(variable?.values.map((entry) => entry.mode)).toEqual(['light', 'dark'])
+    expect(plan.variables.some((candidate) => candidate.name === 'primitives/color/white')).toBe(true)
+
+    // A style cannot hold modes, so the brand *and* the theme are part of its name.
+    expect(plan.styles.map((style) => [style.name, style.token, style.theme])).toEqual([
+      ['northstar/light/primitives/gradient/sunset', 'sunset', 'light'],
+      ['northstar/dark/primitives/gradient/sunset', 'sunset', 'dark'],
+    ])
+
+    const light = plan.styles[0]
+    expect(light?.paint.type).toBe('GRADIENT_LINEAR')
+    expect(light?.paint.gradientTransform).toEqual([
+      [0.5, -0.5, 0.5],
+      [0.5, 0.5, 0],
+    ])
+    expect(light?.paint.gradientStops.map((stop) => [Math.round(stop.color.r * 255), stop.position])).toEqual([
+      [0xd4, 0],
+      [0xff, 1],
+    ])
+    expect(light?.description).toContain('45deg')
+    expect(plan.warnings.join(' ')).toContain('Gradients have no Figma variable type')
+  })
+
+  it('keeps the stops out of a gradient it cannot draw, but still syncs the variable', () => {
+    const file = {
+      brands: {
+        demo: {
+          light: {
+            primitives: {
+              gradient: {
+                odd: {
+                  $type: 'gradient',
+                  $value: [
+                    { color: 'nope', position: 0 },
+                    { color: '#ffffff', position: 1 },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    const plan = planDtcgToFigma(file, EMPTY)
+
+    expect(plan.styles).toEqual([])
+    expect(plan.warnings.join(' ')).toContain('stop 1 ("nope") is not a colour')
+    expect(plan.variables.map((variable) => variable.name)).toEqual(['primitives/gradient/odd'])
   })
 
   it('explains a file without brands instead of planning nothing silently', () => {
@@ -363,5 +410,93 @@ describe('figmaToDtcg', () => {
     store.addCollection('Scratch pad')
 
     expect(figmaToDtcg(store.snapshot())).toMatchObject({ stats: { brands: 0, modes: 0, tokens: 0 } })
+  })
+
+  it('round-trips a gradient: variable and paint style in, DTCG gradient out', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, gradientTokens)
+
+    const style = store.styleNamed('northstar/light/primitives/gradient/sunset')
+    expect(style?.brandId).toBe('northstar')
+    expect(style?.theme).toBe('light')
+    expect(style?.token).toBe('sunset')
+
+    const exported = figmaToDtcg(store.snapshot())
+    expect(exported.warnings).toEqual([])
+    expect(exported.stats.styles).toBe(2)
+
+    const source = fromDesignTokensFormat(gradientTokens)?.brands[0]?.themes.light?.primitives?.gradient?.sunset
+    const round = fromDesignTokensFormat(exported.file)?.brands[0]?.themes.light?.primitives?.gradient?.sunset
+    expect(round?.stops).toEqual(source?.stops)
+    expect(round?.extensions?.['org.designsystem.motion']).toEqual(source?.extensions?.['org.designsystem.motion'])
+  })
+
+  it('writes a gradient style once and then leaves it alone', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, gradientTokens)
+    const second = planDtcgToFigma(gradientTokens, store.snapshot())
+
+    expect(second.styles).toEqual([])
+    expect(second.warnings).toEqual([])
+  })
+
+  it('lets an edit made in Figma win, and says the variable and the style disagree', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, gradientTokens)
+
+    const style = store.styleNamed('northstar/light/primitives/gradient/sunset')
+    const [paint] = style?.paints ?? []
+    if (style === undefined || paint === undefined) throw new Error('expected the gradient style')
+    // A designer recolours the first stop in Figma: the style is now the truth.
+    style.paints = [
+      {
+        ...paint,
+        gradientStops: [{ position: 0, color: { r: 1, g: 0, b: 0, a: 1 } }, paint.gradientStops[1] ?? { position: 1, color: { r: 1, g: 1, b: 1, a: 1 } }],
+      },
+    ]
+
+    const exported = figmaToDtcg(store.snapshot())
+    const gradient = fromDesignTokensFormat(exported.file)?.brands[0]?.themes.light?.primitives?.gradient?.sunset
+
+    expect(gradient?.stops[0]).toEqual({ color: '#FF0000', position: 0 })
+    expect(gradient?.extensions?.['org.designsystem.motion']).toMatchObject({ angle: '45deg' })
+    expect(exported.warnings.join(' ')).toContain('was edited in Figma: the paint style wins in the exported file')
+  })
+
+  it('prunes only the gradient styles it manages', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, gradientTokens)
+    const handMade = store.addPaintStyle('Marketing/hero glow')
+    handMade.paints = [
+      {
+        type: 'GRADIENT_LINEAR',
+        gradientTransform: [
+          [1, 0, 0],
+          [0, 1, 0],
+        ],
+        gradientStops: [],
+      },
+    ]
+
+    // The token is gone from the file, so its style goes with it — the hand-made one stays.
+    const plan = planDtcgToFigma(shippedTokens, store.snapshot(), { prune: true })
+    expect(plan.styleRemovals.map((removal) => removal.name)).toEqual([
+      'northstar/light/primitives/gradient/sunset',
+      'northstar/dark/primitives/gradient/sunset',
+    ])
+
+    store.apply(plan)
+    expect(store.paintStyles.map((style) => style.name)).toEqual(['Marketing/hero glow'])
+  })
+
+  it('reports a style it cannot place instead of dropping it quietly', () => {
+    const store = new FakeFigmaStore()
+    syncInto(store, gradientTokens)
+    const style = store.styleNamed('northstar/light/primitives/gradient/sunset')
+    if (style === undefined) throw new Error('expected the gradient style')
+    style.theme = 'sepia'
+
+    const exported = figmaToDtcg(store.snapshot())
+    expect(exported.warnings.join(' ')).toContain('"sepia" is not a theme of "northstar" in this file')
   })
 })

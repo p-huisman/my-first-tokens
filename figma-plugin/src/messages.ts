@@ -18,6 +18,8 @@ export interface ExportStats {
   modes: number
   tokens: number
   skipped: number
+  /** Gradient tokens that came from a paint style rather than a variable. */
+  styles: number
 }
 
 /** Messages the plugin UI sends to the main thread. */

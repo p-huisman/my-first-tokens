@@ -246,6 +246,12 @@ The Figma plugin writes and reads exactly this shape, so a file exported from Fi
 `$extensions["com.figma"]` with the variable ids, which the importer ignores and the plugin reuses to
 keep re-syncs idempotent.
 
+Gradients are the one token type Figma cannot hold in a variable. The plugin writes each one as a
+`STRING` variable carrying this JSON **and** as a paint style named
+`<brand>/<theme>/primitives/gradient/<key>`, so a gradient can be applied to a layer in Figma and still
+round-trips into the editor unchanged. The plugin README describes the geometry, the prune rules and how
+an edit made in Figma wins on the way back.
+
 A file with a duplicated key (the same key twice in one object) is reported when it is loaded, by name
 and line, because `JSON.parse` keeps the last occurrence and silently drops the earlier ones — a theme
 whose `"structural"` group was written four times reads back as one shortened group. Saved output can

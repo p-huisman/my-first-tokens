@@ -317,6 +317,9 @@ export class TokenSyncPluginApp extends LitElement {
     if (variables.recreate > 0) lines.push(`${countLabel(variables.recreate, 'variable')} recreated (type changed)`)
     if (variables.remove > 0) lines.push(`${countLabel(variables.remove, 'variable')} removed`)
     if (variables.values > 0) lines.push(`${countLabel(variables.values, 'value')} written`)
+    if (summary.styles.create > 0) lines.push(`${countLabel(summary.styles.create, 'gradient style')} created`)
+    if (summary.styles.update > 0) lines.push(`${countLabel(summary.styles.update, 'gradient style')} updated`)
+    if (summary.styles.remove > 0) lines.push(`${countLabel(summary.styles.remove, 'gradient style')} removed`)
 
     return lines.length === 0 ? ['Already up to date — nothing to write.'] : lines
   }
@@ -492,7 +495,7 @@ export class TokenSyncPluginApp extends LitElement {
             : html`
                 <p class="report" role="status">
                   ${countLabel(this.stats.brands, 'brand')} · ${countLabel(this.stats.modes, 'mode')} ·
-                  ${countLabel(this.stats.tokens, 'token')}${this.stats.skipped > 0 ? html` · ${countLabel(this.stats.skipped, 'value')} skipped` : nothing}
+                  ${countLabel(this.stats.tokens, 'token')}${this.stats.styles > 0 ? html` (${countLabel(this.stats.styles, 'gradient')} from a paint style)` : nothing}${this.stats.skipped > 0 ? html` · ${countLabel(this.stats.skipped, 'value')} skipped` : nothing}
                 </p>
                 ${this._renderNotes(this.exportWarnings)}
                 <details class="disclosure">

@@ -16,17 +16,22 @@ import { fromDesignTokensFormat, toDesignTokensFormat } from '../../../src/lib/d
 import { isRecord } from '../../../src/lib/guards.js'
 import { toBrandId, uniqueBrandId } from '../../../src/lib/seed.js'
 import type { Brand, ColorTokens, DtcgTokenFile, GradientValue, ThemeTokens, TokenValue } from '../../../src/lib/types.js'
+import { formatAngle, gradientToPaint, paintToGradient, readGradientMotion, samePaint } from './gradient-paint.js'
+import type { GradientPaintContext } from './gradient-paint.js'
 import { fromSegments, fromVariableName, toCssVariable, toReferencePath, toVariableName, withInferredGroup } from './token-path.js'
 import type { TokenPath } from './token-path.js'
 import type {
   CollectionWrite,
   FigmaColor,
   FigmaCollectionSnapshot,
+  FigmaGradientPaintSnapshot,
   FigmaResolvedType,
   FigmaSnapshot,
+  FigmaStyleSnapshot,
   FigmaValue,
   FigmaVariableSnapshot,
   PlannedValue,
+  StyleWrite,
   SyncLayout,
   SyncPlan,
   SyncSummary,
@@ -63,6 +68,21 @@ export const fromFigmaColor = ({ r, g, b, a }: FigmaColor): string => {
   return color.a < 1 ? toHex8(color) : toHex(color)
 }
 
+/** The editor's gradient model, as far as `value` matches it. */
+const asGradient = (value: unknown): GradientValue | null =>
+  isRecord(value) && Array.isArray(value.stops) && value.stops.length > 0 ? ({ ...value } as unknown as GradientValue) : null
+
+/** `northstar` + `light` + `sunset` → `northstar/light/primitives/gradient/sunset`. */
+export const gradientStyleName = (brandName: string, theme: string, key: string): string =>
+  `${brandName}/${theme}/${toVariableName({ section: 'primitives', group: 'gradient', key })}`
+
+/** The style's description: the token it came from and how the editor renders it. */
+const describeGradientStyle = (name: string, gradient: GradientValue): string => {
+  const motion = readGradientMotion(gradient)
+  const geometry = motion.kind === 'linear' ? `linear ${formatAngle(motion.angle ?? 0)}` : motion.kind
+  return `DTCG gradient ${name}: ${gradient.stops.length} stops, ${geometry}`
+}
+
 const lookupPath = (theme: ThemeTokens, path: string): unknown => {
   let current: unknown = theme
   for (const part of path.split('.')) {
@@ -97,7 +117,7 @@ const parseReference = (value: string, brandId: string, themeName: string): Refe
 }
 
 /** Figma can only alias a variable of the same resolved type. */
-const resolvedTypeFor = (kind: TokenKind): FigmaResolvedType => (kind === 'dimension' ? 'FLOAT' : kind === 'color' || kind === 'gradient' ? 'COLOR' : 'STRING')
+const resolvedTypeFor = (kind: TokenKind): FigmaResolvedType => (kind === 'dimension' ? 'FLOAT' : kind === 'color' ? 'COLOR' : 'STRING')
 
 const THEME_SEPARATORS: Record<ThemeNameStyle, string> = { slash: '/', underscore: '__' }
 const DEFAULT_THEME_NAME_STYLE: ThemeNameStyle = 'slash'
@@ -139,7 +159,14 @@ interface SnapshotIndex {
   collectionByBrandId: Map<string, FigmaCollectionSnapshot>
   variableById: Map<string, FigmaVariableSnapshot>
   variableByCollectionAndName: Map<string, FigmaVariableSnapshot>
+  /** Managed paint styles, matched by plugin data and then by name. */
+  styles: FigmaStyleSnapshot[]
 }
+
+/** The style this brand, theme and gradient already has, if any. */
+const findStyle = (index: SnapshotIndex, brandId: string, theme: string, token: string, name: string): FigmaStyleSnapshot | undefined =>
+  index.styles.find((style) => style.brandId === brandId && (style.theme ?? '') === theme && style.token === token) ??
+  index.styles.find((style) => style.name === name)
 
 const indexSnapshot = (snapshot: FigmaSnapshot): SnapshotIndex => {
   const collectionByBrandId = new Map<string, FigmaCollectionSnapshot>()
@@ -155,6 +182,7 @@ const indexSnapshot = (snapshot: FigmaSnapshot): SnapshotIndex => {
     collectionByBrandId,
     variableById: new Map(snapshot.variables.map((variable) => [variable.id, variable])),
     variableByCollectionAndName: new Map(snapshot.variables.map((variable) => [`${variable.collectionId}|${variable.name}`, variable])),
+    styles: snapshot.styles,
   }
 }
 
@@ -283,6 +311,26 @@ const collectThemeTokens = (theme: ThemeTokens): TokenEntry[] => {
   return entries
 }
 
+/**
+ * How a gradient style resolves its stop colours: a `{reference}` is looked up in the theme
+ * being planned, so a gradient built from colour tokens still draws with those colours.
+ */
+const gradientColours = (plan: BrandPlan, themeName: string): GradientPaintContext => ({
+  toColor: (colour) => {
+    const reference = parseReference(colour, plan.brand.id, themeName)
+    if (reference === null) return toFigmaColorValue(colour)
+
+    const ownBrand = reference.brandId === undefined || reference.brandId === plan.brand.id
+    const target = ownBrand ? plan.brand.themes[reference.theme ?? themeName] : undefined
+    const resolved = target === undefined ? undefined : lookupPath(target, reference.path)
+    return typeof resolved === 'string' ? toFigmaColorValue(resolved) : null
+  },
+  fromColor: fromFigmaColor,
+})
+
+/** The paint a style holds, or nothing when it is not a gradient paint. */
+const firstGradientPaint = (style: FigmaStyleSnapshot): FigmaGradientPaintSnapshot | undefined => style.paints[0]
+
 interface ValueContext {
   brandId: string
   themeName: string
@@ -340,7 +388,15 @@ const planValue = (rawValue: TokenValue, context: ValueContext): PlannedValueRes
     }
   }
 
-  if (context.kind === 'gradient') return { warning: `Skipped ${label}: Figma has no gradient variable type.` }
+  // A gradient has no Figma variable type: it travels as the editor's JSON in a STRING
+  // variable (one value per theme), and as a paint style so it can actually be applied.
+  if (context.kind === 'gradient') {
+    const gradient = asGradient(rawValue)
+    return gradient === null
+      ? { warning: `Skipped ${label}: it does not hold the stops of a gradient.` }
+      : { value: { kind: 'text', value: JSON.stringify(gradient) } }
+  }
+
   return { value: { kind: 'text', value: String(rawValue) } }
 }
 
@@ -415,7 +471,15 @@ export const planDtcgToFigma = (json: unknown, snapshot: FigmaSnapshot, options:
   const layout: SyncLayout = options.layout ?? 'modes'
   const imported = fromDesignTokensFormat(json)
   if (imported === null || imported.brands.length === 0) {
-    return { layout, collections: [], variables: [], removals: [], warnings: ['The JSON has no "brands" collection, so there is nothing to sync.'] }
+    return {
+      layout,
+      collections: [],
+      variables: [],
+      styles: [],
+      removals: [],
+      styleRemovals: [],
+      warnings: ['The JSON has no "brands" collection, so there is nothing to sync.'],
+    }
   }
 
   const warnings = [...imported.warnings]
@@ -529,7 +593,10 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
   const { layout, index, hints, types, warnings, options } = context
   const variables: VariableWrite[] = []
   const removals: SyncPlan['removals'] = []
+  const styles: StyleWrite[] = []
+  const styleRemovals: SyncPlan['styleRemovals'] = []
   const warnedUnits = new Set<string>()
+  let explainedGradients = false
 
   /** One token value in one theme → the value Figma should hold. */
   const plannedValue = (plan: BrandPlan, token: PendingToken, themeName: string, rawValue: TokenValue): PlannedValue | undefined => {
@@ -618,11 +685,6 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
 
   for (const plan of plans) {
     for (const [name, token] of plan.pending) {
-      if (token.kind === 'gradient') {
-        warnings.push(`Skipped "${name}" in "${plan.brand.name}": Figma has no gradient variable type.`)
-        continue
-      }
-
       // `collections` layout: the token lives in the collection of each theme, so it is
       // one variable per theme with a single value instead of one variable with modes.
       if (layout === 'collections') {
@@ -663,6 +725,47 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
       record(token, plan.brand.id, name, undefined, existing, values)
     }
 
+    // Gradients: one paint style per brand *and* theme, because a style cannot hold modes.
+    // The STRING variable above carries the data; this is the part a designer can apply.
+    const styleKeys = new Set<string>()
+    for (const [name, token] of plan.pending) {
+      if (token.kind !== 'gradient') continue
+
+      for (const [themeName, rawValue] of token.values) {
+        const gradient = asGradient(rawValue)
+        if (gradient === null) continue
+
+        const planned = gradientToPaint(gradient, gradientColours(plan, themeName))
+        if (planned.paint === undefined) {
+          warnings.push(`Skipped the gradient style for "${name}" in "${plan.brand.name}": ${planned.warning ?? 'it cannot be drawn'}.`)
+          continue
+        }
+
+        const styleName = gradientStyleName(plan.brand.name, themeName, token.path.key)
+        const existing = findStyle(index, plan.brand.id, themeName, token.path.key, styleName)
+        styleKeys.add(`${themeName}|${token.path.key}`)
+        if (existing !== undefined && samePaint(firstGradientPaint(existing), planned.paint)) continue
+
+        if (!explainedGradients) {
+          explainedGradients = true
+          warnings.push(
+            `Gradients have no Figma variable type, so each one is written as a STRING variable (the token JSON) and as a paint style named "<brand>/<theme>/primitives/gradient/<key>" that can be applied to any layer.`,
+          )
+        }
+
+        styles.push({
+          brandId: plan.brand.id,
+          theme: themeName,
+          name: styleName,
+          token: token.path.key,
+          paint: planned.paint,
+          gradient,
+          description: describeGradientStyle(name, gradient),
+          ...(existing === undefined ? {} : { styleId: existing.id }),
+        })
+      }
+    }
+
     if (options.prune === true) {
       const keep = new Set(plan.pending.keys())
       for (const write of plan.writes) {
@@ -671,10 +774,17 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
           if (variable.collectionId === write.collectionId && !keep.has(variable.name)) removals.push({ variableId: variable.id, name: variable.name })
         }
       }
+
+      // Only styles this plugin wrote carry a token, so a hand-made gradient is never removed.
+      for (const style of index.styles) {
+        if (style.brandId !== plan.brand.id || style.token === undefined) continue
+        if (styleKeys.has(`${style.theme ?? ''}|${style.token}`)) continue
+        styleRemovals.push({ styleId: style.id, name: style.name })
+      }
     }
   }
 
-  return { layout, collections: plans.flatMap((plan) => plan.writes), variables, removals, warnings }
+  return { layout, collections: plans.flatMap((plan) => plan.writes), variables, styles, removals, styleRemovals, warnings }
 }
 
 /** Counts for the preview: what a sync would create, change and remove. */
@@ -697,6 +807,11 @@ export const summarizePlan = (plan: SyncPlan): SyncSummary => ({
     remove: plan.removals.length,
     values: plan.variables.reduce((total, variable) => total + variable.values.length, 0),
   },
+  styles: {
+    create: plan.styles.filter((style) => style.styleId === undefined).length,
+    update: plan.styles.filter((style) => style.styleId !== undefined).length,
+    remove: plan.styleRemovals.length,
+  },
   warnings: plan.warnings,
 })
 
@@ -712,7 +827,7 @@ export interface FigmaToDtcgOptions {
 export interface FigmaToDtcgResult {
   file: DtcgTokenFile
   warnings: string[]
-  stats: { brands: number; modes: number; tokens: number; skipped: number }
+  stats: { brands: number; modes: number; tokens: number; skipped: number; styles: number }
 }
 
 interface CollectionContext {
@@ -989,11 +1104,62 @@ export const figmaToDtcg = (snapshot: FigmaSnapshot, options: FigmaToDtcgOptions
     }
   }
 
+  // Paint styles → gradient tokens. A style is the visual truth in Figma, so when it and its
+  // STRING variable disagree the style wins and the difference is reported.
+  const gradientContext: GradientPaintContext = { toColor: toFigmaColorValue, fromColor: fromFigmaColor }
+  let styles = 0
+
+  for (const style of snapshot.styles) {
+    if (style.brandId === undefined || style.theme === undefined || style.token === undefined) continue
+
+    const brand = brands.find((candidate) => candidate.id === style.brandId)
+    const theme = brand?.themes[style.theme]
+    if (brand === undefined || theme === undefined) {
+      warnings.push(`Skipped the gradient style "${style.name}": "${style.theme}" is not a theme of "${style.brandId}" in this file.`)
+      continue
+    }
+
+    const paint = firstGradientPaint(style)
+    if (paint === undefined) {
+      warnings.push(`Skipped the gradient style "${style.name}": it does not hold a gradient paint.`)
+      continue
+    }
+
+    const stored = asGradient(style.gradient)
+    // Prefer what the style was written from, but only while the paint still matches it: a
+    // designer who edits the style in Figma has to win over what the previous sync wrote.
+    const storedPaint = stored === null ? undefined : gradientToPaint(stored, gradientContext).paint
+    const gradient = stored !== null && samePaint(storedPaint, paint) ? stored : paintToGradient(paint, gradientContext)
+    if (gradient === null) {
+      warnings.push(`Skipped the gradient style "${style.name}": the paint has fewer than two stops.`)
+      continue
+    }
+
+    const path: TokenPath = { section: 'primitives', group: 'gradient', key: style.token }
+    // A style that no longer matches what the last sync wrote was edited in Figma, and a
+    // variable whose JSON differs from that payload was. Either way the style wins, and the
+    // difference is reported rather than resolved silently.
+    const previous = theme.primitives?.gradient?.[style.token]
+    if (stored !== null && !samePaint(storedPaint, paint)) {
+      warnings.push(
+        `"${toVariableName(path)}" in "${brand.name}"/${style.theme} was edited in Figma: the paint style wins in the exported file, and the STRING variable still holds the previous value.`,
+      )
+    } else if (stored !== null && previous !== undefined && JSON.stringify(previous) !== JSON.stringify(stored)) {
+      warnings.push(
+        `"${toVariableName(path)}" in "${brand.name}"/${style.theme}: the STRING variable and the paint style disagree; the paint style wins in the exported file.`,
+      )
+    }
+
+    writeToken(theme, path, gradient)
+    tokens += 1
+    styles += 1
+  }
+
   const file = toDesignTokensFormat(brands)
   file.$description = options.description ?? 'Exported Tokens'
   file.$metadata = { generatedAt: options.generatedAt ?? new Date().toISOString() }
   if (options.includeFigmaExtensions !== false) injectFigmaExtensions(file, extensions)
 
   const modes = [...contexts.values()].reduce((total, context) => total + context.themeNames.length, 0)
-  return { file, warnings, stats: { brands: brands.length, modes, tokens, skipped } }
+  return { file, warnings, stats: { brands: brands.length, modes, tokens, skipped, styles } }
 }

@@ -135,10 +135,39 @@ A sync is idempotent: the second run plans zero writes, values are only written 
 actually differ, and a variable whose resolved type changed is reported and recreated
 (Figma cannot change a type in place).
 
+### Gradients
+
+Figma variables have no gradient type, so a gradient token is written **twice**, from the same
+value in the same sync:
+
+| What                                                     | Why                                                                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STRING` variable `primitives/gradient/sunset`           | the token itself: one value per mode/theme holding the editor's `{ stops, extensions }` JSON, so the data survives without the style and Dev Mode shows `var(--primitives-gradient-sunset)` |
+| Paint style `northstar/light/primitives/gradient/sunset` | the part a designer can use: a `GRADIENT_LINEAR`/`RADIAL`/`ANGULAR`/`DIAMOND` paint that applies to any layer and can be published in a library                                             |
+
+- Styles have no modes, so a gradient is one style per **brand and theme** in both layouts; the brand,
+  theme and token key live in shared plugin data (`org.tokensync`), which is what keeps a re-sync from
+  duplicating a style and what makes pruning safe — only styles carrying a token are ever removed.
+- Stop colours that are `{references}` are resolved in the theme being planned (so a gradient built from
+  colour tokens draws with those colours); the variable keeps the reference, so the editor round trip is
+  unchanged.
+- Geometry is converted in `src/lib/gradient-paint.ts`: CSS `0deg` points to the top and grows clockwise,
+  and the span is `|sin a| + |cos a|` so a diagonal reaches corner to corner as CSS does. An export stores
+  the exact matrix as `figmaGradientTransform` in the gradient's `org.designsystem.motion` extension, so
+  re-importing reproduces the identical paint even if a file was created elsewhere. Legacy
+  `figmaHandlePositions` are still read, but only as a last resort (the editor's dialog always wrote
+  `[0,0] → [1,1]`).
+- Reading back: an export prefers the gradient JSON stored on the style, and switches to the paint itself
+  when the style no longer matches it — a gradient edited in Figma wins, with a note that the `STRING`
+  variable still holds the previous value. A style whose brand/theme is not in the file is reported
+  instead of dropped.
+- `prune` removes only managed gradient styles; a hand-made gradient style is left alone.
+
 ## Known limits
 
-- **Gradients** have no Figma variable type. They are skipped with a note when importing,
-  and read back from a `STRING` variable holding the editor's gradient JSON when exporting.
+- **Gradients** have no Figma variable type, so each one is written as a `STRING` variable (the token
+  JSON, one value per theme) **and** as a paint style per brand and theme — see
+  [Gradients](#gradients) above for the naming, geometry and prune rules.
 - **`rem`/`em`/`%` units** become unitless `FLOAT` values; the unit is preserved in the
   variable description and reported as a note.
 - **Modes are plan-dependent** in Figma. A refused `addMode` is reported as a note (with the number of

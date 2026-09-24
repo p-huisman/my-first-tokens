@@ -19,6 +19,22 @@ export interface FigmaColor {
   a: number
 }
 
+/** One stop of a gradient paint: where it sits (0-1) and its colour. */
+export interface FigmaColorStopSnapshot {
+  position: number
+  color: FigmaColor
+}
+
+/**
+ * A gradient paint. Figma has no gradient variable type, so this is what a paint style
+ * holds; `gradientTransform` is the 2×3 matrix described in `gradient-paint.ts`.
+ */
+export interface FigmaGradientPaintSnapshot {
+  type: 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | 'GRADIENT_ANGULAR' | 'GRADIENT_DIAMOND'
+  gradientTransform: [[number, number, number], [number, number, number]]
+  gradientStops: FigmaColorStopSnapshot[]
+}
+
 /** A variable value as it appears in `Variable.valuesByMode`. */
 export type FigmaValue = { type: 'raw'; value: string | number | boolean | FigmaColor } | { type: 'alias'; id: string }
 
@@ -52,9 +68,32 @@ export interface FigmaVariableSnapshot {
   valuesByMode: Record<string, FigmaValue>
 }
 
+/**
+ * A paint style the sync manages. Gradients are the only styles this plugin writes, so the
+ * brand, theme and token key travel in shared plugin data: that is what keeps a re-sync from
+ * duplicating a style after a rename, and what makes pruning safe.
+ */
+export interface FigmaStyleSnapshot {
+  id: string
+  name: string
+  description: string
+  paints: FigmaGradientPaintSnapshot[]
+  brandId?: string
+  theme?: string
+  /** The gradient token key the style was generated from (`sunset`). */
+  token?: string
+  /** The DTCG gradient this style was written from, so an export is lossless. */
+  gradient?: unknown
+}
+
 export interface FigmaSnapshot {
   collections: FigmaCollectionSnapshot[]
   variables: FigmaVariableSnapshot[]
+  /**
+   * Paint styles in the file. Only gradient styles the plugin generated are read back
+   * (they carry the brand, theme and token in shared plugin data); the rest are ignored.
+   */
+  styles: FigmaStyleSnapshot[]
 }
 
 /** The DTCG type a token maps to. Gradients have no native Figma variable type. */
@@ -129,11 +168,32 @@ export interface VariableWrite {
   codeSyntax?: Record<string, string>
 }
 
+/**
+ * One gradient paint style. Styles have no modes, so a gradient is written once per brand
+ * *and* theme, named `<brand>/<theme>/primitives/gradient/<key>` in both layouts.
+ */
+export interface StyleWrite {
+  brandId: string
+  theme: string
+  /** Style name in Figma, which is also the folder a designer sees in the picker. */
+  name: string
+  /** Gradient token key, so a re-sync finds the style again after a rename. */
+  token: string
+  paint: FigmaGradientPaintSnapshot
+  /** The DTCG gradient kept on the style, so the export direction is lossless. */
+  gradient: unknown
+  description?: string
+  /** Existing style this write updates, omitted when it has to be created. */
+  styleId?: string
+}
+
 export interface SyncPlan {
   layout: SyncLayout
   collections: CollectionWrite[]
   variables: VariableWrite[]
+  styles: StyleWrite[]
   removals: Array<{ variableId: string; name: string }>
+  styleRemovals: Array<{ styleId: string; name: string }>
   warnings: string[]
 }
 
@@ -142,6 +202,7 @@ export interface SyncSummary {
   collections: { create: number; update: number }
   modes: { add: number; remove: number; rename: number }
   variables: { create: number; update: number; rename: number; recreate: number; remove: number; values: number }
+  styles: { create: number; update: number; remove: number }
   warnings: string[]
 }
 

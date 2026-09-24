@@ -7,8 +7,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import shippedTokens from '../../public/tokens.json'
+import gradientTokens from '../../tokens-with-gradient.json'
 import { findDuplicateKeys } from '../../src/lib/json.js'
-import { BRAND_NAMESPACE, SHARED_NAMESPACE_PATTERN } from './lib/plugin-data.js'
+import { BRAND_KEY, BRAND_NAMESPACE, GRADIENT_KEY, SHARED_NAMESPACE_PATTERN, THEME_KEY, TOKEN_KEY } from './lib/plugin-data.js'
 import type { PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 
 interface FakeMode {
@@ -63,6 +64,33 @@ class FakeCollection {
   }
 }
 
+class FakePaintStyle {
+  readonly id: string
+  readonly type = 'PAINT'
+  name: string
+  description = ''
+  paints: unknown[] = []
+  removed = false
+  private readonly shared = new Map<string, string>()
+
+  constructor(id: string) {
+    this.id = id
+    this.name = ''
+  }
+
+  setSharedPluginData(namespace: string, key: string, value: string): void {
+    this.shared.set(`${namespace}/${key}`, value)
+  }
+
+  getSharedPluginData(namespace: string, key: string): string {
+    return this.shared.get(`${namespace}/${key}`) ?? ''
+  }
+
+  remove(): void {
+    this.removed = true
+  }
+}
+
 class FakeVariable {
   readonly id: string
   readonly variableCollectionId: string
@@ -97,6 +125,7 @@ class FakeVariable {
 const createFigmaStub = (options: { modeLimit?: number } = {}) => {
   const collections: FakeCollection[] = []
   const variables: FakeVariable[] = []
+  const paintStyles: FakePaintStyle[] = []
   const messages: PluginToUi[] = []
   const notifications: string[] = []
   const storage = new Map<string, unknown>()
@@ -106,6 +135,14 @@ const createFigmaStub = (options: { modeLimit?: number } = {}) => {
     showUI: () => undefined,
     notify: (message: string) => notifications.push(message),
     commitUndo: () => undefined,
+    getLocalPaintStylesAsync: () => Promise.resolve(paintStyles.filter((style) => !style.removed)),
+    createPaintStyle: () => {
+      counter += 1
+      const style = new FakePaintStyle(`S:${counter}`)
+      paintStyles.push(style)
+      return style
+    },
+    getStyleByIdAsync: (id: string) => Promise.resolve(paintStyles.find((style) => style.id === id && !style.removed) ?? null),
     ui: { postMessage: (message: PluginToUi) => messages.push(message), onmessage: undefined as ((message: UiToPlugin) => void) | undefined },
     clientStorage: {
       getAsync: (key: string) => Promise.resolve(storage.get(key)),
@@ -147,6 +184,11 @@ const createFigmaStub = (options: { modeLimit?: number } = {}) => {
       return variables.find((variable) => variable.variableCollectionId === collection?.id && variable.name === name && !variable.removed)
     },
     collectionNamed: (name: string) => collections.find((collection) => collection.name === name),
+    styleNamed: (name: string) => paintStyles.find((style) => style.name === name && !style.removed),
+    /** Live paint styles, like Figma: a removed style is gone. */
+    get paintStyles(): FakePaintStyle[] {
+      return paintStyles.filter((style) => !style.removed)
+    },
     /** The handler `code.ts` registered; typed loosely because Figma's typing wants a props argument. */
     get onmessage(): ((message: UiToPlugin) => void) | undefined {
       return api.ui.onmessage as unknown as ((message: UiToPlugin) => void) | undefined
@@ -170,6 +212,16 @@ const loadPlugin = async (options: { modeLimit?: number; storage?: Record<string
   await vi.waitFor(() => {
     expect(store.messages.some((message) => message.type === 'ready')).toBe(true)
   }, WAIT)
+}
+
+/**
+ * `send` resolves with the first message of that type ever sent, so a test that syncs twice
+ * needs the *next* reply: wait for a new message, then take the newest of that type.
+ */
+const sendNext = async (message: UiToPlugin, type: PluginToUi['type']): Promise<PluginToUi | undefined> => {
+  const before = store.messages.length
+  await send(message, () => store.messages.length > before)
+  return store.messages.filter((candidate) => candidate.type === type).at(-1)
 }
 
 /** Sends a UI message and waits for the reply the assertion is about. */
@@ -251,11 +303,47 @@ describe('code.ts', () => {
     const exported = await send({ type: 'export-tokens' }, (message) => message.type === 'tokens-exported')
     if (exported?.type !== 'tokens-exported') throw new Error('expected tokens-exported')
 
-    expect(exported.stats).toMatchObject({ brands: 2, modes: 4, skipped: 0 })
+    expect(exported.stats).toMatchObject({ brands: 2, modes: 4, skipped: 0, styles: 0 })
     const file = JSON.parse(exported.json) as { brands?: Record<string, unknown> }
     expect(Object.keys(file.brands ?? {})).toEqual(['northstar', 'sunset'])
     // The save path verifies its own output, so a file it writes never loses tokens on read.
     expect(findDuplicateKeys(exported.json)).toEqual([])
+  })
+
+  it('creates gradient paint styles and then leaves them alone', async () => {
+    await loadPlugin()
+    await send({ type: 'apply-sync', json: gradientTokens, options: syncOptions }, (message) => message.type === 'sync-applied')
+
+    const style = store.styleNamed('northstar/light/primitives/gradient/sunset')
+    expect(style?.paints).toHaveLength(1)
+    expect(style?.getSharedPluginData(BRAND_NAMESPACE, BRAND_KEY)).toBe('northstar')
+    expect(style?.getSharedPluginData(BRAND_NAMESPACE, THEME_KEY)).toBe('light')
+    expect(style?.getSharedPluginData(BRAND_NAMESPACE, TOKEN_KEY)).toBe('sunset')
+    expect(style?.getSharedPluginData(BRAND_NAMESPACE, GRADIENT_KEY)).toContain('"stops"')
+
+    // Gradients also travel as STRING variables, so the data survives without the style.
+    expect(store.variableIn('northstar', 'primitives/gradient/sunset')?.resolvedType).toBe('STRING')
+
+    const again = await send({ type: 'plan-sync', json: gradientTokens, options: syncOptions }, (message) => message.type === 'sync-preview')
+    if (again?.type !== 'sync-preview') throw new Error('expected sync-preview')
+    expect(again.summary.styles).toEqual({ create: 0, update: 0, remove: 0 })
+
+    const exported = await send({ type: 'export-tokens' }, (message) => message.type === 'tokens-exported')
+    if (exported?.type !== 'tokens-exported') throw new Error('expected tokens-exported')
+    expect(exported.stats.styles).toBe(2)
+    expect(exported.warnings).toEqual([])
+    expect(exported.json).toContain('"$type": "gradient"')
+  })
+
+  it('prunes the gradient styles a file no longer has', async () => {
+    await loadPlugin()
+    await send({ type: 'apply-sync', json: gradientTokens, options: syncOptions }, (message) => message.type === 'sync-applied')
+    expect(store.paintStyles).toHaveLength(2)
+
+    const pruned = await sendNext({ type: 'apply-sync', json: shippedTokens, options: { ...syncOptions, prune: true } }, 'sync-applied')
+    if (pruned?.type !== 'sync-applied') throw new Error('expected sync-applied')
+    expect(pruned.report.styles.remove).toBe(2)
+    expect(store.paintStyles).toEqual([])
   })
 
   it('keeps the GitHub token only when the user asks for it', async () => {
