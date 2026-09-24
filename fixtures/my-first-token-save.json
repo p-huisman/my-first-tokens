@@ -1,6 +1,6 @@
 {
   "$description": "Exported Tokens",
-  "$metadata": {
+  "$extensions": {
     "generatedAt": "2026-09-22T18:48:12.826Z"
   },
   "brands": {

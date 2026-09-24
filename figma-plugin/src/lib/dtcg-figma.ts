@@ -1174,7 +1174,7 @@ export const figmaToDtcg = (snapshot: FigmaSnapshot, options: FigmaToDtcgOptions
 
   const file = toDesignTokensFormat(brands)
   file.$description = options.description ?? 'Exported Tokens'
-  file.$metadata = { generatedAt: options.generatedAt ?? new Date().toISOString() }
+  file.$extensions = { generatedAt: options.generatedAt ?? new Date().toISOString() }
   if (options.includeFigmaExtensions !== false) injectFigmaExtensions(file, extensions)
 
   const modes = [...contexts.values()].reduce((total, context) => total + context.themeNames.length, 0)

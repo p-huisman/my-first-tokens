@@ -227,7 +227,7 @@ export const normalizeBrand = (brand: Brand): Brand => {
 /** Our own file format: brands → themes → sections → `{ $value, $type }`. */
 export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
   $description: 'Exported Tokens',
-  $metadata: {
+  $extensions: {
     generatedAt: new Date().toISOString(),
   },
   brands: Object.fromEntries(

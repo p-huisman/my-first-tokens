@@ -466,7 +466,7 @@ describe('figmaToDtcg', () => {
     const file = figmaToDtcg(store.snapshot(), { includeFigmaExtensions: false, description: 'From Figma', generatedAt: '2026-01-01T00:00:00.000Z' }).file
 
     expect(file.$description).toBe('From Figma')
-    expect(file.$metadata).toEqual({ generatedAt: '2026-01-01T00:00:00.000Z' })
+    expect(file.$extensions).toEqual({ generatedAt: '2026-01-01T00:00:00.000Z' })
     expect(tokenNode(file, 'northstar', 'light', 'primitives/color/white')?.$extensions).toBeUndefined()
   })
 

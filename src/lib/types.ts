@@ -82,7 +82,7 @@ export interface DtcgToken {
 
 export interface DtcgTokenFile {
   $description?: string
-  $metadata?: { generatedAt: string }
+  $extensions?: { generatedAt: string }
   brands: Record<string, unknown>
 }
 
