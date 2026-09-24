@@ -1,0 +1,8 @@
+{
+  "name": "TokenSync — DTCG → Penpot Tokens",
+  "description": "Import W3C DTCG design tokens (multi-brand) into Penpot's token catalog. Prompts for a brand, fixes missing units on spatial/structural tokens and rewrites multi-brand references.",
+  "version": 2,
+  "code": "plugin.js",
+  "icon": "favicon.svg",
+  "permissions": ["content:read", "content:write", "library:read", "library:write", "allow:localstorage"]
+}

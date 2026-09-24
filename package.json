@@ -16,13 +16,16 @@
     "format:check": "prettier --check .",
     "plugin:build": "node figma-plugin/scripts/build-plugin.mjs",
     "plugin:watch": "node --watch-path=figma-plugin/src figma-plugin/scripts/build-plugin.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run plugin:build"
+    "penpot:build": "node penpot-plugin/scripts/build-plugin.mjs",
+    "penpot:dev": "vite penpot-plugin --config penpot-plugin/vite.config.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run plugin:build && npm run penpot:build"
   },
   "dependencies": {
     "lit": "^3.3.3"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.138.0",
+    "@penpot/plugin-types": "^1.5.0",
     "@types/node": "^26.6.2",
     "oxlint": "^1.85.0",
     "prettier": "^3.9.8",
