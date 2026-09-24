@@ -15,7 +15,8 @@ let openTokenMenu: HTMLDetailsElement | null = null
 /**
  * One token row: a colour input for primitives, a reference picker for
  * semantic/component tokens. The row owns its data lookups so only the rows
- * whose values changed re-render.
+ * whose values changed re-render — `revision` is how the app says the model
+ * changed shape without replacing the theme object.
  */
 export class TknTokenRow extends LitElement {
   static properties = {
@@ -23,12 +24,19 @@ export class TknTokenRow extends LitElement {
     section: { type: String },
     primitiveGroup: { type: String, attribute: 'primitive-group' },
     theme: { type: Object },
+    /**
+     * Version of the token model, bumped by the app when tokens are added or re-pointed. The
+     * theme object itself is mutated in place, which Lit cannot detect, so without this the
+     * option lists (and the swatches beside them) would keep whatever was rendered before.
+     */
+    revision: { type: Number },
   }
 
   declare tokenKey: string
   declare section: SectionName
   declare primitiveGroup: PrimitiveGroupName
   declare theme: ThemeTokens
+  declare revision: number
 
   constructor() {
     super()
@@ -36,6 +44,7 @@ export class TknTokenRow extends LitElement {
     this.section = 'primitives'
     this.primitiveGroup = 'color'
     this.theme = {}
+    this.revision = 0
   }
 
   connectedCallback() {

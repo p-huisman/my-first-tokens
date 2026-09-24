@@ -37,6 +37,8 @@ export class TokenSyncApp extends LitElement {
     cssOutput: { type: String },
     importWarnings: { type: Array },
     importIssues: { type: Array },
+    /** Bumped when tokens are added, renamed or re-pointed, so rows re-read their options. */
+    tokenRevision: { type: Number },
     primitiveDialogOpen: { type: Boolean },
     primitiveDialogError: { type: String },
     scaleDialogOpen: { type: Boolean },
@@ -60,6 +62,7 @@ export class TokenSyncApp extends LitElement {
   declare cssOutput: string
   declare importWarnings: string[]
   declare importIssues: TokenIssue[]
+  declare tokenRevision: number
   declare primitiveDialogOpen: boolean
   declare primitiveDialogError: string
   declare scaleDialogOpen: boolean
@@ -84,6 +87,7 @@ export class TokenSyncApp extends LitElement {
     this.cssOutput = ''
     this.importWarnings = []
     this.importIssues = []
+    this.tokenRevision = 0
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
     this.scaleDialogOpen = false
@@ -192,6 +196,17 @@ export class TokenSyncApp extends LitElement {
     return this.currentBrand?.themes?.[this.selectedTheme] ?? {}
   }
 
+  /**
+   * Tells the token rows that the model changed shape. Lit only sees *new* property values and
+   * the rows are handed the very same theme object on every render, so without this version an
+   * alias picker keeps the options it rendered before a primitive was added. Deliberately not
+   * called for value edits: re-rendering the row the user is typing in would replace its text
+   * field with the fallback colour (see `tkn-token-row`).
+   */
+  private _tokensChanged() {
+    this.tokenRevision += 1
+  }
+
   /** A colour edited in a primitive token row. */
   _handleTokenChange(event: CustomEvent<TokenChangeDetail>) {
     const { section, group, key, value } = event.detail
@@ -214,7 +229,7 @@ export class TokenSyncApp extends LitElement {
     if (tokens === undefined) return
 
     tokens[key] = value.startsWith('#') ? value : `{${value}}`
-    this.requestUpdate()
+    this._tokensChanged()
   }
 
   _openSemanticDialog() {
@@ -241,7 +256,7 @@ export class TokenSyncApp extends LitElement {
     })
     this.semanticDialogOpen = false
     this.semanticDialogError = ''
-    this.requestUpdate()
+    this._tokensChanged()
   }
 
   _openPrimitiveDialog() {
@@ -271,7 +286,7 @@ export class TokenSyncApp extends LitElement {
     })
     this.primitiveDialogOpen = false
     this.primitiveDialogError = ''
-    this.requestUpdate()
+    this._tokensChanged()
   }
 
   _openScaleDialog() {
@@ -305,7 +320,7 @@ export class TokenSyncApp extends LitElement {
     })
     this.scaleDialogOpen = false
     this.scaleDialogError = ''
-    this.requestUpdate()
+    this._tokensChanged()
   }
 
   _openGradientDialog() {
@@ -347,7 +362,7 @@ export class TokenSyncApp extends LitElement {
     })
     this.gradientDialogOpen = false
     this.gradientDialogError = ''
-    this.requestUpdate()
+    this._tokensChanged()
   }
 
   _openSpatialDialog() {
@@ -378,7 +393,7 @@ export class TokenSyncApp extends LitElement {
     })
     this.spatialDialogOpen = false
     this.spatialDialogError = ''
-    this.requestUpdate()
+    this._tokensChanged()
   }
 
   _startAddBrand() {
@@ -504,6 +519,7 @@ export class TokenSyncApp extends LitElement {
                 section="primitives"
                 primitive-group=${this.primitiveFilter}
                 .theme=${theme}
+                .revision=${this.tokenRevision}
                 @token-change=${this._handleTokenChange}
                 @gradient-edit=${this._editGradient}
               ></tkn-token-row>
@@ -644,6 +660,7 @@ export class TokenSyncApp extends LitElement {
                           token-key=${key}
                           section=${section}
                           .theme=${theme}
+                          .revision=${this.tokenRevision}
                           @token-change=${this._handleTokenChange}
                           @token-link=${this._handleTokenLink}
                         ></tkn-token-row>
