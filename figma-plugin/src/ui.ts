@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import type { TemplateResult } from 'lit'
 import { DEFAULT_GITHUB_SETTINGS, fetchTokensFromUrl } from './lib/github.js'
 import type { GitHubSettings } from './lib/github.js'
+import { duplicateKeyNotes } from '../../src/lib/json.js'
 import type { SyncReport, SyncLayout, SyncSummary, ThemeNameStyle } from './lib/types.js'
 import type { ExportStats, PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
 
@@ -26,6 +27,7 @@ export class TokenSyncPluginApp extends LitElement {
     sourceUrl: { type: String },
     sourceLabel: { type: String },
     loaded: { type: Object },
+    loadNotes: { type: Array },
     pasteValue: { type: String },
     layout: { type: String },
     themeNameStyle: { type: String },
@@ -50,6 +52,8 @@ export class TokenSyncPluginApp extends LitElement {
   declare sourceLabel: string
   /** The loaded DTCG file, validated by `fromDesignTokensFormat` inside the planner. */
   declare loaded: unknown
+  /** Notes about the raw text of the loaded file, e.g. duplicated JSON keys. */
+  declare loadNotes: string[]
   declare pasteValue: string
   /** `auto` follows the layout the file already uses. */
   declare layout: SyncLayout | 'auto'
@@ -77,6 +81,7 @@ export class TokenSyncPluginApp extends LitElement {
     this.sourceUrl = ''
     this.sourceLabel = ''
     this.loaded = undefined
+    this.loadNotes = []
     this.pasteValue = ''
     this.layout = 'auto'
     this.themeNameStyle = 'slash'
@@ -159,9 +164,10 @@ export class TokenSyncPluginApp extends LitElement {
     return { layout: this.layout, themeNameStyle: this.themeNameStyle, prune: this.prune, codeSyntax: this.codeSyntax }
   }
 
-  private _accept(json: unknown, label: string) {
+  private _accept(json: unknown, label: string, notes: string[] = []) {
     this.loaded = json
     this.sourceLabel = label
+    this.loadNotes = notes
     this.summary = null
     this.report = null
     this.error = ''
@@ -170,6 +176,7 @@ export class TokenSyncPluginApp extends LitElement {
 
   private _fail(message: string) {
     this.error = message
+    this.loadNotes = []
     this.busy = ''
   }
 
@@ -201,7 +208,7 @@ export class TokenSyncPluginApp extends LitElement {
       return
     }
 
-    this._accept(result.json, result.message.replace('Loaded ', ''))
+    this._accept(result.json, result.message.replace('Loaded ', ''), result.notes)
   }
 
   private _loadFromFile = async (event: Event) => {
@@ -216,7 +223,8 @@ export class TokenSyncPluginApp extends LitElement {
     }
 
     try {
-      this._accept(JSON.parse(await file.text()), file.name)
+      const text = await file.text()
+      this._accept(JSON.parse(text), file.name, duplicateKeyNotes(text, file.name))
     } catch {
       this._fail(`${file.name} is not valid JSON.`)
     }
@@ -224,7 +232,7 @@ export class TokenSyncPluginApp extends LitElement {
 
   private _usePasted = () => {
     try {
-      this._accept(JSON.parse(this.pasteValue), 'pasted JSON')
+      this._accept(JSON.parse(this.pasteValue), 'pasted JSON', duplicateKeyNotes(this.pasteValue, 'pasted JSON'))
     } catch {
       this._fail('The pasted text is not valid JSON.')
     }
@@ -408,6 +416,8 @@ export class TokenSyncPluginApp extends LitElement {
         <p class="muted">
           ${loaded ? html`Source: <strong>${this.sourceLabel}</strong>` : 'Load the tokens.json the GitHub Page serves, a local file, or pasted JSON.'}
         </p>
+
+        ${this._renderNotes(this.loadNotes)}
 
         <fieldset>
           <legend>Options</legend>

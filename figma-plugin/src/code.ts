@@ -12,6 +12,7 @@ import type { FetchLike } from './lib/github.js'
 import { BRAND_KEY, BRAND_NAMESPACE, THEME_KEY } from './lib/plugin-data.js'
 import type { FigmaColor, FigmaSnapshot, FigmaValue, SyncLayout, SyncPlan, SyncReport } from './lib/types.js'
 import type { PluginSettings, PluginToUi, SyncOptions, UiToPlugin } from './messages.js'
+import { toJsonText } from '../../src/lib/json.js'
 
 const SETTINGS_KEY = 'token-sync-settings'
 
@@ -267,7 +268,7 @@ const handleMessage = async (message: UiToPlugin): Promise<void> => {
 
     case 'export-tokens': {
       const result = figmaToDtcg(await readSnapshot())
-      post({ type: 'tokens-exported', json: JSON.stringify(result.file, null, 2), stats: result.stats, warnings: result.warnings })
+      post({ type: 'tokens-exported', json: toJsonText(result.file), stats: result.stats, warnings: result.warnings })
       return
     }
 

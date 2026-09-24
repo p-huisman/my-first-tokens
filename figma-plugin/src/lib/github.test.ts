@@ -106,8 +106,22 @@ describe('fetchTokensFromUrl', () => {
   it('reports HTTP errors and invalid JSON without throwing', async () => {
     const missing = await fetchTokensFromUrl('https://example.com/tokens.json', fakeFetch([{ status: 404 }]).fetchImpl)
     expect(missing.message).toContain('404')
+    expect(missing.notes).toEqual([])
 
     expect((await fetchTokensFromUrl('https://example.com/tokens.json', brokenBody)).message).toContain('Could not load')
+  })
+
+  it('notes a duplicated key in the text, because JSON.parse drops the earlier ones', async () => {
+    const duplicated = `{\n  "brands": {\n    "northstar": {\n      "light": {\n        "primitives": {\n          "structural": { "radius-sm": 4 },\n          "structural": { "radius-sm": 8 }\n        }\n      }\n    }\n  }\n}`
+    const body: FetchLike = () =>
+      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(duplicated)), text: () => Promise.resolve(duplicated) })
+
+    const result = await fetchTokensFromUrl('https://example.com/tokens.json', body)
+
+    expect(result.ok).toBe(true)
+    expect(result.notes).toEqual([
+      'https://example.com/tokens.json: duplicate key "structural" in brands.northstar.light.primitives (2×, last on line 7) — JSON keeps the last one, so 1 earlier value was dropped.',
+    ])
   })
 
   it('defaults to the published GitHub Page URL', () => {

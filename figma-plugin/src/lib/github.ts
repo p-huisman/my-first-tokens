@@ -4,6 +4,8 @@
  * unit tested with a fake `fetch`.
  */
 
+import { duplicateKeyNotes } from '../../../src/lib/json.js'
+
 export interface GitHubSettings {
   owner: string
   repo: string
@@ -135,18 +137,22 @@ export interface TokensFetchResult {
   ok: boolean
   json?: unknown
   message: string
+  /** Notes about the raw text, e.g. duplicated keys that `JSON.parse` silently collapsed. */
+  notes: string[]
 }
 
 /** Loads a DTCG file from a URL (the GitHub Page, raw.githubusercontent.com, …). */
 export const fetchTokensFromUrl = async (url: string, fetchImpl: FetchLike = globalThis.fetch as FetchLike): Promise<TokensFetchResult> => {
   const target = url.trim()
-  if (target === '') return { ok: false, message: 'Enter the URL of a tokens.json file.' }
+  if (target === '') return { ok: false, notes: [], message: 'Enter the URL of a tokens.json file.' }
 
   try {
     const response = await fetchImpl(target, { method: 'GET', headers: { Accept: 'application/json' } })
-    if (!response.ok) return { ok: false, message: `The server answered HTTP ${response.status} for that URL.` }
-    return { ok: true, json: JSON.parse(await response.text()), message: `Loaded ${target}` }
+    if (!response.ok) return { ok: false, notes: [], message: `The server answered HTTP ${response.status} for that URL.` }
+
+    const text = await response.text()
+    return { ok: true, json: JSON.parse(text), message: `Loaded ${target}`, notes: duplicateKeyNotes(text, target) }
   } catch (error) {
-    return { ok: false, message: `Could not load ${target}: ${error instanceof Error ? error.message : String(error)}` }
+    return { ok: false, notes: [], message: `Could not load ${target}: ${error instanceof Error ? error.message : String(error)}` }
   }
 }

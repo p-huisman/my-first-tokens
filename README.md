@@ -144,6 +144,9 @@ loaded it falls back to the brands embedded in `src/lib/seed.ts`, so the page al
 In the editor itself:
 
 - **Load JSON** reads a token file from your computer, **Save JSON** writes the whole file back out.
+- Duplicate JSON keys in a loaded file are reported as a note: `JSON.parse` keeps the last occurrence and
+  drops the earlier ones, so a key written twice silently loses tokens. Saving never writes one — the
+  editor and the plugin both serialise through `toJsonText`, which verifies its own output.
 - The left column is for primitives (colours, spacing, sizes, radii, border widths, gradients); the
   right columns are the semantic and component tokens, where you pick which token they point at.
 - The CSS panel shows the custom properties for the brand and theme you selected, ready to copy.
@@ -180,6 +183,7 @@ src/lib/                       pure, framework-free logic (fully unit tested)
   color.ts                     parsing/formatting/HSV/interpolation + DTCG colour reader
   tokens.ts                    reference resolution, link options, CSS + chrome variables
   dtcg.ts                      import/export, alias normalisation, default token set
+  json.ts                      duplicate-key detection + the verified JSON writer
   seed.ts                      embedded fallback brands + brand ids
   guards.ts / types.ts         runtime type guards and the shared model
 public/tokens.json             token data fetched on startup (DTCG shape)
@@ -241,6 +245,12 @@ The Figma plugin writes and reads exactly this shape, so a file exported from Fi
 (and committed as `public/tokens.json`) without conversion. Only the plugin adds
 `$extensions["com.figma"]` with the variable ids, which the importer ignores and the plugin reuses to
 keep re-syncs idempotent.
+
+A file with a duplicated key (the same key twice in one object) is reported when it is loaded, by name
+and line, because `JSON.parse` keeps the last occurrence and silently drops the earlier ones — a theme
+whose `"structural"` group was written four times reads back as one shortened group. Saved output can
+never contain the problem: `toJsonText` in `src/lib/json.ts` writes the pretty JSON and verifies the
+text before it reaches a download, the clipboard or a GitHub commit.
 
 Known limits: references pointing at _another_ brand or theme are preserved but cannot be resolved in
 the editor (they render as the fallback colour), scale interpolation is linear in sRGB, and

@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit'
 import type { PropertyValues } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { fromDesignTokensFormat, normalizeBrand, toDesignTokensFormat } from './lib/dtcg.js'
+import { duplicateKeyNotes, toJsonText } from './lib/json.js'
 import { NEW_BRAND_PALETTE, createDefaultBrands, seedBrand, uniqueBrandId } from './lib/seed.js'
 import { buildCssVariables, buildThemeStyle, collectTokenIssues, referenceOptions, toKebab } from './lib/tokens.js'
 import { hasPrimitives } from './lib/guards.js'
@@ -129,10 +130,11 @@ export class TokenSyncApp extends LitElement {
     try {
       const response = await fetch(`${import.meta.env.BASE_URL}tokens.json`)
       if (!response.ok) throw new Error('Unable to load tokens.json')
-      const json: unknown = await response.json()
+      const text = await response.text()
+      const json: unknown = JSON.parse(text)
       const imported = fromDesignTokensFormat(json)
       if (imported === null || imported.brands.length === 0) throw new Error('The token file does not contain a brands collection.')
-      this._applyBrands(imported.brands, imported.warnings)
+      this._applyBrands(imported.brands, [...imported.warnings, ...duplicateKeyNotes(text, 'tokens.json')])
     } catch (error) {
       console.warn('Falling back to embedded token defaults:', error)
       this._applyBrands(createDefaultBrands())
@@ -151,13 +153,14 @@ export class TokenSyncApp extends LitElement {
     }
 
     try {
-      const json: unknown = JSON.parse(await file.text())
+      const text = await file.text()
+      const json: unknown = JSON.parse(text)
       const imported = fromDesignTokensFormat(json)
       if (imported === null || imported.brands.length === 0) {
         throw new Error('The JSON file does not contain a brands collection.')
       }
 
-      this._applyBrands(imported.brands, imported.warnings)
+      this._applyBrands(imported.brands, [...imported.warnings, ...duplicateKeyNotes(text, file.name)])
       this.fileLoadError = ''
     } catch (error) {
       this.fileLoadError =
@@ -168,7 +171,7 @@ export class TokenSyncApp extends LitElement {
   }
 
   downloadTokensFile() {
-    const payload = JSON.stringify(toDesignTokensFormat(this.brands), null, 2)
+    const payload = toJsonText(toDesignTokensFormat(this.brands))
     const blob = new Blob([payload], { type: 'application/json' })
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')

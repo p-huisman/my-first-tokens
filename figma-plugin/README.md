@@ -46,7 +46,8 @@ The panel has two halves — one per direction.
 
 1. Load the tokens. The URL field already points at the published GitHub Page, so pressing
    **Load URL** is usually enough. You can also use **Choose file…** for a file on your computer, or
-   open **or paste JSON** and paste the JSON in.
+   open **or paste JSON** and paste the JSON in. A file that repeats a JSON key in one object gets a
+   note under the source line: `JSON.parse` keeps the last occurrence, so the earlier ones are dropped.
 2. Press **Preview changes** to see what a sync would do without writing anything. You get a short
    list, for example _2 new collections · 2 modes renamed · 116 variables created_.
 3. Press **Sync to Figma** to actually write it: brands become collections, themes become modes,
@@ -150,6 +151,9 @@ actually differ, and a variable whose resolved type changed is reported and recr
   creates grouped variables next to the flat ones unless you enable pruning.
 - **Cross-brand references** only work when the referenced brand is in the same file and is
   planned first; otherwise the alias is reported and skipped.
+- **Duplicated JSON keys** in a loaded file are reported as a note naming the key, its path and line,
+  because `JSON.parse` keeps the last occurrence. An export never contains one: `Read Figma variables`
+  writes through `toJsonText`, which verifies the text it produces.
 
 ## Layout
 
