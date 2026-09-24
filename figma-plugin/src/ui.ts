@@ -371,7 +371,7 @@ export class TokenSyncPluginApp extends LitElement {
 
     return html`
       <header>
-        <h1>TokenSync</h1>
+        <h1>My first tokens - Sync</h1>
         <p class="muted">
           ${countLabel(this.snapshotCounts.collections, 'collection')} · ${countLabel(this.snapshotCounts.variables, 'variable')} in this file
         </p>
