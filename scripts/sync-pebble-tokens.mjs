@@ -24,7 +24,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 // Plain Node runs this through its `.ts` type stripping, which is why `oklab.ts` has no imports:
@@ -48,6 +48,13 @@ const outIndex = argv.indexOf('--out')
 const outDir = outIndex === -1 ? undefined : path.resolve(argv[outIndex + 1] ?? '')
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
+
+/** `primitives.color.blue.500` → `--primitives-color-blue-500`, as `build.mjs` spells it. */
+const toCssVarName = (tokenPath) =>
+  `--${tokenPath
+    .replace(/\./g, '-')
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .toLowerCase()}`
 const withoutMetadata = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith('$')))
 const metadataOf = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => key.startsWith('$')))
 
@@ -414,6 +421,134 @@ const toDtcgCommand = (inspectOnly) => {
   return false
 }
 
+/**
+ * Groups that are kept whole, however few of their steps are referenced.
+ *
+ * A scale is something you *pick from*: the next step has to be there, or the system is a ladder with
+ * a rung missing (`spacing.scale.5` after `.4`, `radius.2xl` between `xl` and `full`). Designers and
+ * the app's own step pickers read them as a set, so a step nothing points at yet is not dead weight —
+ * it is the offer. The font-family set is here for the same reason: `sans`/`serif`/`mono` is chosen
+ * between, not consumed one by one.
+ *
+ * The colour ramps are deliberately *not* here. A whole hue nothing maps (`orange`, `pink`, `teal`) is
+ * a brand decision rather than a missing rung, so those still go when nothing points at them.
+ */
+const KEPT_GROUPS = [
+  'primitives.spacing.scale',
+  'primitives.spacing.radius',
+  'primitives.spacing.borderWidth',
+  'primitives.typography.fontFamily',
+  'primitives.typography.fontSize',
+  'primitives.typography.fontWeight',
+  'primitives.typography.lineHeight',
+  'primitives.typography.letterSpacing',
+  'primitives.motion.duration',
+  'primitives.motion.easing',
+  'primitives.elevation.shadow',
+]
+
+/** True for a token inside one of the kept groups. */
+const isKeptGroup = (tokenPath) => KEPT_GROUPS.some((group) => tokenPath.startsWith(`${group}.`))
+
+/**
+ * Drops primitives nothing points at.
+ *
+ * A primitive is **used** when another token references it with `{…}` — in any layer, or in a theme
+ * override — or when a `var(--primitives-…)` anywhere in pebble's or the app's own sources names its
+ * custom property. Everything else is a raw value no part of the system reaches, and it is weight in
+ * the files, in the snapshot and in `tokens.css` with every build.
+ *
+ * Only the primitives layer is pruned. Semantic and component tokens are the design system's API:
+ * they exist to be offered, and a component that has not been written yet is not a reason to delete
+ * the token it will name.
+ */
+const prunePrimitives = (inspectOnly) => {
+  const target = outDir ?? tokensDir
+  const tokens = readTokens(target)
+  const references = new Set()
+  const collectReferences = (node) => {
+    if (Array.isArray(node)) return node.forEach(collectReferences)
+    if (!isRecord(node)) {
+      if (typeof node === 'string') for (const match of node.matchAll(/\{([^}]+)\}/g)) references.add(match[1] ?? '')
+      return
+    }
+    Object.values(node).forEach(collectReferences)
+  }
+  collectReferences(tokens)
+
+  // A component may read a raw value directly, and the app may name one in its own styles.
+  const varNames = new Set()
+  const scanForVarNames = (entry) => {
+    if (!existsSync(entry)) return
+    const stats = lstatSync(entry)
+    if (stats.isDirectory()) {
+      for (const child of readdirSync(entry)) {
+        if (['node_modules', 'dist', '.git'].includes(child)) continue
+        scanForVarNames(path.join(entry, child))
+      }
+      return
+    }
+    for (const match of readFileSync(entry, 'utf8').matchAll(/var\(\s*(--[a-z0-9-]+)/g)) varNames.add(match[1] ?? '')
+  }
+  for (const source of [path.join(pebbleRoot, 'src'), path.join(pebbleRoot, 'site'), path.join(root, 'src'), path.join(root, 'index.html')]) {
+    scanForVarNames(source)
+  }
+
+  const used = (tokenPath) => references.has(tokenPath) || varNames.has(toCssVarName(tokenPath)) || isKeptGroup(tokenPath)
+  const removed = []
+  const written = []
+
+  for (const name of jsonFileNames(path.join(target, 'primitives'))) {
+    const file = path.join(target, 'primitives', name)
+    const before = readJson(file)
+    const beforeRoot = isRecord(before.primitives) ? before.primitives : {}
+
+    /** A copy of a group without the leaves nothing points at; empty groups go too. */
+    const pruneTree = (node, prefix) => {
+      const output = {}
+      for (const [key, value] of Object.entries(node)) {
+        const tokenPath = prefix === '' ? key : `${prefix}.${key}`
+        if (isRecord(value) && '$value' in value) {
+          if (used(`primitives.${tokenPath}`)) output[key] = value
+          else removed.push(`primitives.${tokenPath}`)
+          continue
+        }
+        if (isRecord(value)) {
+          const pruned = pruneTree(value, tokenPath)
+          if (Object.keys(pruned).length > 0) output[key] = pruned
+          continue
+        }
+        output[key] = value
+      }
+      return output
+    }
+
+    const after = pruneTree(beforeRoot, '')
+    if (deepEqual(before.primitives, after)) continue
+
+    console.log(`~ primitives/${name}`)
+    written.push([file, { ...metadataOf(before), primitives: after }])
+  }
+
+  for (const tokenPath of removed) console.log(`  − ${tokenPath}`)
+
+  if (removed.length === 0) {
+    console.log(`✅ nothing unused in ${pathRelative(path.join(target, 'primitives'))}`)
+    return true
+  }
+
+  if (inspectOnly) {
+    console.log(`\n⚠️  ${removed.length} primitive(s) would go, in ${written.length} file(s)`)
+    return false
+  }
+
+  for (const [file, after] of written) writeJson(file, after)
+  if (!formatWithPebblePrettier(written.map(([file]) => file))) console.log("ℹ️  run pebble's own prettier before committing these files")
+
+  console.log(`\n✅ ${removed.length} unused primitive(s) removed from ${written.length} file(s)`)
+  return true
+}
+
 const countTokens = (tree) => {
   let count = 0
   const walk = (node) => {
@@ -520,7 +655,7 @@ const fixture = () => {
 }
 
 const usage = () => {
-  console.error('Usage: node scripts/sync-pebble-tokens.mjs <sync|check|push|fixture|to-dtcg|to-rgba> [--out <dir>] [--dry-run]')
+  console.error('Usage: node scripts/sync-pebble-tokens.mjs <sync|check|push|fixture|to-dtcg|prune|to-rgba> [--out <dir>] [--dry-run]')
   console.error(`  pebble tokens dir: ${tokensDir}`)
   console.error(`  pebble built css:  ${builtCss}`)
 }
@@ -536,6 +671,8 @@ if (command === 'sync') {
   }
 } else if (command === 'to-dtcg') {
   toDtcgCommand(flags.has('--check') || flags.has('--dry-run'))
+} else if (command === 'prune') {
+  prunePrimitives(flags.has('--check') || flags.has('--dry-run'))
 } else if (command === 'to-rgba') {
   const converted = toRgba(flags.has('--check') || flags.has('--dry-run'))
   if (!converted && flags.has('--check')) {

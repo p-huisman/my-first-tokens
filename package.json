@@ -20,6 +20,8 @@
     "tokens:check": "node scripts/sync-pebble-tokens.mjs check",
     "tokens:push": "node scripts/sync-pebble-tokens.mjs push",
     "tokens:fixture": "node scripts/sync-pebble-tokens.mjs fixture",
+    "tokens:to-dtcg": "node scripts/sync-pebble-tokens.mjs to-dtcg",
+    "tokens:prune": "node scripts/sync-pebble-tokens.mjs prune",
     "tokens:to-rgba": "node scripts/sync-pebble-tokens.mjs to-rgba",
     "tokens:to-rgba:check": "node scripts/sync-pebble-tokens.mjs to-rgba --check",
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run plugin:build"

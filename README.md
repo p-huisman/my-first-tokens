@@ -13,8 +13,8 @@ would get wrong, and regenerates `tokens.css` exactly as `tokens/build.mjs` writ
 
 | Layer      | Tokens | Groups                                                      |
 | ---------- | ------ | ----------------------------------------------------------- |
-| primitives | 226    | color, spacing, typography, motion, elevation               |
-| semantic   | 161    | color, spacing, typography, elevation                       |
+| primitives | 159    | color, spacing, typography, motion, elevation               |
+| semantic   | 168    | color, spacing, typography, elevation                       |
 | components | 512    | one group per component (accordion, calendar, button, … 21) |
 
 - **Theme** switches between the `config.json` themes. Like pebble, the default theme lands on
@@ -57,6 +57,7 @@ npm run tokens:check     # fails when the snapshot and the pebble dir disagree
 npm run tokens:push      # snapshot -> pebble tokens dir (--dry-run, --check, --out <dir>)
 npm run tokens:fixture   # refresh fixtures/pebble (sources + the built tokens.css)
 npm run tokens:to-dtcg   # rewrite the pebble files in the 2025.10 value shapes (--check)
+npm run tokens:prune     # drop the primitives nothing points at (--dry-run)
 npm run tokens:to-rgba   # the earlier oklch → hex migration; now a no-op
 ```
 
@@ -96,8 +97,31 @@ What the spec has no place for is a decision, not a conversion, so the migration
   block slot.
 
 `fixtures/pebble/` is a verbatim copy of the pebble token sources and their built `tokens.css`, and
-`src/lib/pebble/css.test.ts` asserts the app regenerates that file byte for byte — 906 declarations on
-`:root`, 911 on `:root[data-theme="dark"]`, 45 values that differ and the 5 dark-only ones.
+`src/lib/pebble/css.test.ts` asserts the app regenerates that file byte for byte — 839 declarations on
+`:root`, 844 on `:root[data-theme="dark"]`, 45 values that differ and the 5 dark-only ones.
+
+### Pruning
+
+`tokens:prune` drops primitives nothing points at: no other token references one with `{…}` (in any
+layer or theme override) and no `var(--primitives-…)` in pebble's or this app's own sources names its
+custom property — the run scans both trees before it removes anything.
+
+**The scales stay whole.** `KEPT_GROUPS` in the script lists the groups that are something you pick
+_from_ rather than consume one by one: `spacing.scale`, `spacing.radius`, `spacing.borderWidth`, the
+`fontFamily`/`fontSize`/`fontWeight`/`lineHeight`/`letterSpacing` sets, `motion.duration`,
+`motion.easing` and `elevation.shadow`. A ladder with a rung missing (`spacing.scale.5` gone while
+`.4` and `.6` stay) is a worse system than one step nobody has reached for yet, so every step is kept.
+The colour ramps are deliberately _not_ on that list: a whole hue nothing maps is a brand decision,
+not a missing rung.
+
+That took pebble from 226 primitives to 159 — the unused colour steps went (`orange`, `pink` and
+`teal` entirely, most of `green`, `purple` and the alpha whites) and every scale came back. The
+generated `tokens.css` lost those colour declarations and nothing else; no component changed,
+because every primitive it removes is one no stylesheet read.
+
+Only the primitives layer is pruned at all. The semantic and component layers are the design system's
+API — a component nobody has written yet is not a reason to delete the token it will name — so those
+stay, and the app's notes panel keeps listing them.
 
 ## Publish the editor on GitHub Pages
 

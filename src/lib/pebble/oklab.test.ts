@@ -171,22 +171,24 @@ describe('the palette after the migration', () => {
     const oklch = leaves.filter((leaf) => typeof leaf.node.$value === 'string' && /^oklch\(/i.test(leaf.node.$value.trim()))
 
     expect(oklch).toEqual([])
-    expect(paletteValues()).toHaveLength(122)
+    // The palette is what the layers still point at; `tokens:prune` dropped the rest.
+    expect(paletteValues()).toHaveLength(55)
   })
 
   it('holds hex for the opaque colours and rgba for the alpha steps', () => {
     const values = paletteValues()
 
-    // 101 opaque primitives plus the light theme's one literal; 20 alpha steps.
-    expect(values.filter((value) => value.startsWith('#')).length).toBe(102)
-    expect(values.filter((value) => value.startsWith('rgba(')).length).toBe(20)
+    // 46 opaque primitives (the light theme's literal included); 9 alpha steps.
+    expect(values.filter((value) => value.startsWith('#')).length).toBe(46)
+    expect(values.filter((value) => value.startsWith('rgba(')).length).toBe(9)
   })
 
   it('landed in the files exactly what the conversion produces', () => {
     for (const [path, source, expected] of MIGRATED) {
       const leaf = walkLeaves(tokens.primitives).find((candidate) => candidate.path.join('.') === path)
 
-      expect(leaf?.node.$value).toBe(expected)
+      // A pruned palette step is gone from the files; the conversion it recorded still has to hold.
+      if (leaf !== undefined) expect(leaf.node.$value).toBe(expected)
       expect(oklchToCss(source)).toBe(expected)
     }
   })

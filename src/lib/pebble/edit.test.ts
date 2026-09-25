@@ -276,7 +276,9 @@ describe('removalCheck', () => {
   })
 
   it('allows a token nothing points at', () => {
-    const free = tokensOfLayer(tokens, 'primitives').find((ref) => removalCheck(tokens, ref).ok)
+    // Every primitive is referenced now that `tokens:prune` has been through; the semantic layer
+    // still offers tokens no component has named yet.
+    const free = tokensOfLayer(tokens, 'semantic').find((ref) => removalCheck(tokens, ref).ok)
 
     expect(free).toBeDefined()
     if (free === undefined) return

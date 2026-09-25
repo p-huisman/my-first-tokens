@@ -12,6 +12,7 @@
  */
 
 import { flattenTokens, resolveTokens, sortTokenEntries, toCssValue, toCssVarName, type FlatTokens, type ResolveOptions } from './model.js'
+import { fromSnapshot } from './load.js'
 import type { PebbleTokens } from './types.js'
 
 /**
@@ -64,6 +65,21 @@ export const generateTokensCss = (tokens: PebbleTokens, generatedAt: string = ne
   const blocks = tokens.config.themes.map((theme) => generateThemeCss(theme.id, resolveTheme(tokens, theme.id)))
 
   return `${tokensCssHeader(generatedAt)}${blocks.join('\n\n')}\n`
+}
+
+/**
+ * Build a CSS file from the snapshot JSON shape used by the app. This is the same output as the
+ * Pebble build, but takes the JSON object directly so we can write a dist artifact without the
+ * app having to fetch it from the browser.
+ */
+export const generateTokensCssFile = (json: unknown, generatedAt: string = new Date().toISOString()): string => {
+  const tokens = fromSnapshot(json) ?? (json as PebbleTokens | null)
+
+  if (!tokens || !tokens.config || !tokens.primitives || !tokens.semantic || !tokens.components) {
+    throw new Error('tokens.css generation requires a pebble token snapshot object')
+  }
+
+  return generateTokensCss(tokens, generatedAt)
 }
 
 export interface ThemeSummary {

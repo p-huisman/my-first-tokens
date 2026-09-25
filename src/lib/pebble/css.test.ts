@@ -67,8 +67,8 @@ describe('generateTokensCss parity with the pebble build', () => {
     const light = valuesIn(expectedCss, ':root')
     const dark = valuesIn(expectedCss, ':root[data-theme="dark"]')
 
-    expect(Object.keys(light)).toHaveLength(906)
-    expect(Object.keys(dark)).toHaveLength(911)
+    expect(Object.keys(light)).toHaveLength(839)
+    expect(Object.keys(dark)).toHaveLength(844)
   })
 
   it('keeps `var()` for component tokens and substitutes the layers in full', () => {
@@ -83,7 +83,7 @@ describe('generateTokensCss parity with the pebble build', () => {
     const light = valuesIn(expectedCss, ':root')
 
     expect(light['--primitives-elevation-shadow-xs']).toBe('0px 1px 2px 0px rgba(0, 0, 0, 0.1)')
-    expect(light['--primitives-elevation-shadow-inner']).toBe('inset 0px 2px 4px 0px rgba(0, 0, 0, 0.05)')
+    expect(light['--primitives-elevation-shadow-2xl']).toBe('0px 25px 50px -12px rgba(0, 0, 0, 0.2)')
     expect(light['--primitives-motion-easing-ease-out']).toBe('cubic-bezier(0, 0, 0.2, 1)')
     expect(light['--accordion-item-header-padding-block']).toBe('var(--semantic-spacing-component-padding-block-md)')
     expect(light['--accordion-item-header-padding-inline']).toBe('var(--semantic-spacing-component-padding-inline-md)')
@@ -116,8 +116,8 @@ describe('generateTokensCss parity with the pebble build', () => {
 
   it('counts the theme overrides', () => {
     expect(summariseThemes(tokens)).toEqual([
-      { themeId: 'light', name: 'Light', selector: ':root', variables: 906, overrides: 25 },
-      { themeId: 'dark', name: 'Dark', selector: ':root[data-theme="dark"]', variables: 911, overrides: 51 },
+      { themeId: 'light', name: 'Light', selector: ':root', variables: 839, overrides: 25 },
+      { themeId: 'dark', name: 'Dark', selector: ':root[data-theme="dark"]', variables: 844, overrides: 51 },
     ])
   })
 

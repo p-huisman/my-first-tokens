@@ -21,7 +21,7 @@ const tokens = fromFiles(files)
 
 describe('tokensOfLayer', () => {
   it('counts what pebble ships', () => {
-    expect(countLayer(tokens, 'primitives')).toBe(226)
+    expect(countLayer(tokens, 'primitives')).toBe(159)
     expect(countLayer(tokens, 'semantic')).toBe(168)
     expect(countLayer(tokens, 'components')).toBe(512)
   })
@@ -152,7 +152,7 @@ describe('aliasCandidates', () => {
   it('offers primitives and semantic tokens for a semantic token, without itself', () => {
     const candidates = aliasCandidates(tokens, 'semantic', 'light', 'semantic.color.text.primary')
 
-    expect(candidates).toHaveLength(226 + 168 - 1)
+    expect(candidates).toHaveLength(159 + 168 - 1)
     expect(candidates.every((candidate) => /^(primitives|semantic)\./.test(candidate.path))).toBe(true)
     expect(candidates.map((candidate) => candidate.path)).not.toContain('semantic.color.text.primary')
   })
@@ -160,7 +160,7 @@ describe('aliasCandidates', () => {
   it('offers the same for a component token, and never a component', () => {
     const candidates = aliasCandidates(tokens, 'components', 'light', 'button.size.md.minHeight')
 
-    expect(candidates).toHaveLength(226 + 168)
+    expect(candidates).toHaveLength(159 + 168)
     expect(candidates.some((candidate) => candidate.path.startsWith('button.'))).toBe(false)
   })
 
