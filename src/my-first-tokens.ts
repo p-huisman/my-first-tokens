@@ -1,717 +1,590 @@
 import { LitElement, css, html, nothing } from 'lit'
-import type { PropertyValues } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
-import { fromDesignTokensFormat, normalizeBrand, toDesignTokensFormat } from './lib/dtcg.js'
+import { PebbleTokenRow } from './components/pebble-token-row.js'
+import type { AddTokenSaveDetail } from './components/add-token-dialog.js'
+import type { AddScaleSaveDetail } from './components/add-scale-dialog.js'
+import type { RemoveTokenSaveDetail } from './components/remove-token-dialog.js'
 import { duplicateKeyNotes, toJsonText } from './lib/json.js'
-import { checkBrandModel } from './lib/model.js'
-import { NEW_BRAND_PALETTE, createDefaultBrands, seedBrand, uniqueBrandId } from './lib/seed.js'
-import { buildCssVariables, buildThemeStyle, collectTokenIssues, referenceOptions, toKebab } from './lib/tokens.js'
-import { hasPrimitives } from './lib/guards.js'
-import type {
-  Brand,
-  ColorTokens,
-  PrimitiveColorSaveDetail,
-  PrimitiveGroupName,
-  ScaleSaveDetail,
-  GradientSaveDetail,
-  SemanticSaveDetail,
-  SpatialSaveDetail,
-  ThemeTokens,
-  TokenChangeDetail,
-  TokenIssue,
-} from './lib/types.js'
-import './components/primitive-color-dialog.js'
-import './components/primitive-scale-dialog.js'
-import './components/primitive-spatial-dialog.js'
-import './components/primitive-gradient-dialog.js'
-import './components/semantic-token-dialog.js'
-import './components/token-row.js'
+import {
+  aliasCandidates,
+  authoredValueOf,
+  cachedResolvedValues,
+  cachedTokensInGroup,
+  countLayer,
+  groupsOfLayer,
+  LAYER_LABELS,
+  LAYERS,
+  layerPathOf,
+  overriddenPaths,
+  searchTokens,
+  tokensInGroup,
+  type TokenRef,
+} from './lib/pebble/browse.js'
+import { cachedTokensCss, summariseThemes } from './lib/pebble/css.js'
+import { addToken, removalCheck, removeThemeOverride, removeToken, setTokenValue, type RemovalCheck } from './lib/pebble/edit.js'
+import { fromSnapshot, toSnapshot } from './lib/pebble/load.js'
+import type { FlatTokens } from './lib/pebble/model.js'
+import { toCssVarName } from './lib/pebble/model.js'
+import type { LayerName, PebbleTokens, TokenValue } from './lib/pebble/types.js'
+import { cachedIssues, issuesForTheme, type TokenIssue } from './lib/pebble/validate.js'
+import './components/add-token-dialog.js'
+import './components/add-scale-dialog.js'
+import './components/remove-token-dialog.js'
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
-export class TokenSyncApp extends LitElement {
+/**
+ * The snapshot the app edits: `tokens:sync` writes it into `public/`, the DTCG validator is pointed
+ * at it, and GitHub Pages serves it next to the page. Vite warns about — and rewrites — a JavaScript
+ * import from the public directory, so it is **fetched** instead of imported; that also keeps 166 kB
+ * of tokens out of the bundle. `BASE_URL` is `/` locally and the repository subpath when deployed,
+ * which is exactly where the file is served. `null` (offline, or a hand-broken file) leaves the app
+ * on `EMPTY_TOKENS`, and **Load snapshot** puts a file in by hand.
+ */
+const snapshot: unknown = await fetch(`${import.meta.env.BASE_URL}pebble-tokens.json`)
+  .then((response) => (response.ok ? response.json() : null))
+  .catch(() => null)
+
+/** Only used if the snapshot cannot be fetched or parsed. */
+const EMPTY_TOKENS: PebbleTokens = {
+  config: { defaultTheme: 'light', themes: [{ id: 'light', name: 'Light', path: './themes/light.json' }] },
+  primitives: {},
+  semantic: {},
+  components: {},
+  themes: {},
+}
+
+const ISSUE_LABELS: Record<TokenIssue['kind'], string> = {
+  cycle: 'Circular reference',
+  dangling: 'Reference does not exist',
+  orphan: 'Theme path the layers never use',
+  'undefined-var': 'Custom property is never declared',
+  'type-mismatch': 'Value the $type cannot hold',
+}
+
+/**
+ * The manager for the tokens pebble's components are built on.
+ *
+ * It edits the *files* pebble ships — `primitives/`, `semantic/`, `components/` and the sparse
+ * theme overrides — and shows the CSS its build would write. There is no multi-brand model here:
+ * one token set, and a theme is an override of it.
+ *
+ * Two things are worth knowing about a value this app writes:
+ *
+ * 1. An edit lands in the layer unless the selected theme **already overrides** that path, in which
+ *    case the theme's override is what changes. That is pebble's own model — a theme carries only
+ *    what it re-points — and every row says which of the two it edits.
+ * 2. The generated CSS is injected into this document, so the app is dressed in the very tokens it
+ *    edits: the chrome below reads `--semantic-color-…`.
+ */
+export class PebbleTokenManager extends LitElement {
   static properties = {
-    brands: { type: Array },
-    selectedBrand: { type: String },
-    selectedTheme: { type: String },
-    primitiveFilter: { type: String },
-    cssOutput: { type: String },
-    importWarnings: { type: Array },
-    importIssues: { type: Array },
-    /** Bumped when tokens are added, renamed or re-pointed, so rows re-read their options. */
-    tokenRevision: { type: Number },
-    primitiveDialogOpen: { type: Boolean },
-    primitiveDialogError: { type: String },
-    scaleDialogOpen: { type: Boolean },
-    scaleDialogError: { type: String },
-    gradientDialogOpen: { type: Boolean },
-    gradientDialogError: { type: String },
-    spatialDialogOpen: { type: Boolean },
-    spatialDialogError: { type: String },
-    fileLoadError: { type: String },
-    addingBrand: { type: Boolean },
-    newBrandName: { type: String },
-    semanticDialogOpen: { type: Boolean },
-    semanticDialogError: { type: String },
+    tokens: { type: Object },
+    themeId: { type: String },
+    layer: { type: String },
+    group: { type: String },
+    query: { type: String },
+    revision: { type: Number },
+    loadError: { type: String },
+    importNotes: { type: Array },
     copyStatus: { type: String },
+    addOpen: { type: Boolean },
+    addError: { type: String },
+    scaleOpen: { type: Boolean },
+    scaleError: { type: String },
+    undoTokens: { type: Object },
+    removeRef: { type: Object },
+    removeCheck: { type: Object },
   }
 
-  declare brands: Brand[]
-  declare selectedBrand: string
-  declare selectedTheme: string
-  declare primitiveFilter: PrimitiveGroupName
-  declare cssOutput: string
-  declare importWarnings: string[]
-  declare importIssues: TokenIssue[]
-  declare tokenRevision: number
-  declare primitiveDialogOpen: boolean
-  declare primitiveDialogError: string
-  declare scaleDialogOpen: boolean
-  declare scaleDialogError: string
-  declare gradientDialogOpen: boolean
-  declare gradientDialogError: string
-  declare spatialDialogOpen: boolean
-  declare spatialDialogError: string
-  declare fileLoadError: string
-  declare addingBrand: boolean
-  declare newBrandName: string
-  declare semanticDialogOpen: boolean
-  declare semanticDialogError: string
+  declare tokens: PebbleTokens
+  declare themeId: string
+  declare layer: LayerName
+  declare group: string
+  declare query: string
+  declare revision: number
+  declare loadError: string
+  declare importNotes: string[]
   declare copyStatus: string
+  declare addOpen: boolean
+  declare addError: string
+  declare scaleOpen: boolean
+  declare scaleError: string
+  /** The token set as it was before the last structural change, for a one-step undo. */
+  declare undoTokens: PebbleTokens | undefined
+  /** The token the remove dialog is about, and what points at it. */
+  declare removeRef: TokenRef | null
+  declare removeCheck: RemovalCheck | null
 
   constructor() {
     super()
-    this.brands = createDefaultBrands()
-    this.selectedBrand = this.brands[0]?.id ?? ''
-    this.selectedTheme = 'light'
-    this.primitiveFilter = 'color'
-    this.cssOutput = ''
-    this.importWarnings = []
-    this.importIssues = []
-    this.tokenRevision = 0
-    this.primitiveDialogOpen = false
-    this.primitiveDialogError = ''
-    this.scaleDialogOpen = false
-    this.scaleDialogError = ''
-    this.gradientDialogOpen = false
-    this.gradientDialogError = ''
-    this.spatialDialogOpen = false
-    this.spatialDialogError = ''
-    this.fileLoadError = ''
-    this.addingBrand = false
-    this.newBrandName = ''
-    this.semanticDialogOpen = false
-    this.semanticDialogError = ''
+    this.tokens = fromSnapshot(snapshot) ?? EMPTY_TOKENS
+    this.themeId = this.tokens.config.defaultTheme ?? this.tokens.config.themes[0]?.id ?? 'light'
+    this.layer = 'primitives'
+    this.group = groupsOfLayer(this.tokens, 'primitives')[0] ?? ''
+    this.query = ''
+    this.revision = 0
+    this.loadError = ''
+    this.importNotes = []
     this.copyStatus = ''
+    this.addOpen = false
+    this.addError = ''
+    this.scaleOpen = false
+    this.scaleError = ''
+    this.undoTokens = undefined
+    this.removeRef = null
+    this.removeCheck = null
   }
 
-  connectedCallback() {
-    super.connectedCallback()
-    this.loadBrandData()
+  /** The theme that lands on `:root`: pebble leaves the attribute off for this one. */
+  private get baseThemeId(): string {
+    return this.tokens.config.defaultTheme ?? 'light'
+  }
+
+  private get resolvedValues(): FlatTokens {
+    return cachedResolvedValues(this.tokens, this.themeId)
+  }
+
+  private get overrides(): Set<string> {
+    return overriddenPaths(this.tokens, this.themeId)
+  }
+
+  /** Where a change to this token lands: its theme when the theme overrides it, else the layer. */
+  private _editingFor(ref: TokenRef): string {
+    return this.overrides.has(ref.fullPath) ? this.themeId : ''
+  }
+
+  private get visible(): TokenRef[] {
+    return this.query.trim() === '' ? cachedTokensInGroup(this.tokens, this.layer, this.group) : searchTokens(this.tokens, this.query)
   }
 
   /**
-   * Derived state lives here instead of in every mutator: the CSS export is
-   * recomputed, references are validated and `color-scheme` follows the theme.
+   * Hands the document the tokens under edit: the `data-theme` attribute pebble uses and the
+   * generated file itself, so `var(--semantic-…)` resolves everywhere — including in this app.
    */
-  willUpdate() {
-    const cssOutput = buildCssVariables(this.currentThemeTokens)
-    if (cssOutput !== this.cssOutput) this.cssOutput = cssOutput
+  updated(): void {
+    const root = document.documentElement
 
-    const colorScheme = this.selectedTheme === 'dark' ? 'dark' : 'light'
-    if (document.documentElement.style.colorScheme !== colorScheme) {
-      document.documentElement.style.colorScheme = colorScheme
+    if (this.themeId === this.baseThemeId) delete root.dataset.theme
+    else root.dataset.theme = this.themeId
+
+    root.style.colorScheme = this.themeId.toLowerCase().includes('dark') ? 'dark' : 'light'
+
+    let style = document.getElementById('pebble-tokens')
+    if (style === null) {
+      style = document.createElement('style')
+      style.id = 'pebble-tokens'
+      document.head.append(style)
     }
+
+    style.textContent = cachedTokensCss(this.tokens)
   }
 
-  private _applyBrands(brands: Brand[], warnings: string[] = []) {
-    this.brands = brands.map((brand) => normalizeBrand(brand))
-    this.selectedBrand = this.brands[0]?.id ?? this.selectedBrand
-    // The model rules (one primitive set per brand, one set of semantic/component names) are
-    // checked on every load, so an imported file cannot drift the way `public/tokens.json` did.
-    this.importWarnings = [...warnings, ...checkBrandModel(this.brands)]
-    this.importIssues = collectTokenIssues(this.brands)
+  private _handleTheme(event: Event) {
+    this.themeId = (event.target as HTMLSelectElement).value
   }
 
-  async loadBrandData() {
-    try {
-      const response = await fetch(`${import.meta.env.BASE_URL}tokens.json`)
-      if (!response.ok) throw new Error('Unable to load tokens.json')
-      const text = await response.text()
-      const json: unknown = JSON.parse(text)
-      const imported = fromDesignTokensFormat(json)
-      if (imported === null || imported.brands.length === 0) throw new Error('The token file does not contain a brands collection.')
-      this._applyBrands(imported.brands, [...imported.warnings, ...duplicateKeyNotes(text, 'tokens.json')])
-    } catch (error) {
-      console.warn('Falling back to embedded token defaults:', error)
-      this._applyBrands(createDefaultBrands())
+  private _handleGroup(event: Event) {
+    this.group = (event.target as HTMLSelectElement).value
+  }
+
+  private _handleQuery(event: Event) {
+    this.query = (event.target as HTMLInputElement).value
+  }
+
+  private _selectLayer(layer: LayerName) {
+    this.layer = layer
+    this.group = groupsOfLayer(this.tokens, layer)[0] ?? ''
+    this.query = ''
+  }
+
+  /** A value edited in a row: the layer, or the theme when it already overrides that token. */
+  private _handleValueChange(event: CustomEvent<{ value: TokenValue }>) {
+    const ref = (event.target as PebbleTokenRow).ref
+    if (ref === null) return
+
+    const theme = this._editingFor(ref)
+    this.tokens = setTokenValue(this.tokens, { layer: ref.layer, fullPath: ref.fullPath, ...(theme === '' ? {} : { theme }) }, event.detail.value)
+    this.revision += 1
+  }
+
+  /** "Use the layer value": drops the override so the token falls back to the layer. */
+  private _handleResetOverride(event: Event) {
+    const ref = (event.target as PebbleTokenRow).ref
+    if (ref === null) return
+
+    this.tokens = removeThemeOverride(this.tokens, this.themeId, ref.fullPath)
+    this.revision += 1
+  }
+
+  private _openAddDialog() {
+    this.addError = ''
+    this.addOpen = true
+  }
+
+  private _closeAddDialog() {
+    this.addOpen = false
+    this.addError = ''
+  }
+
+  private _openScaleDialog() {
+    this.scaleError = ''
+    this.scaleOpen = true
+  }
+
+  private _closeScaleDialog() {
+    this.scaleOpen = false
+    this.scaleError = ''
+  }
+
+  /** Remembers the token set before a structural change, so one step can be taken back. */
+  private _remember() {
+    this.undoTokens = this.tokens
+  }
+
+  /** Undo, and redo by pressing it again — the two sets simply trade places. */
+  private _undo() {
+    if (this.undoTokens === undefined) return
+
+    const current = this.tokens
+    this.tokens = this.undoTokens
+    this.undoTokens = current
+    this.revision += 1
+    this._showStatus('Swapped back — press Undo again to swap forward.')
+  }
+
+  /** "Remove" on a row: check what maps to the token, and let the dialog report it. */
+  private _handleRemove(event: Event) {
+    const ref = (event.target as PebbleTokenRow).ref
+    if (ref === null) return
+
+    this.removeRef = ref
+    this.removeCheck = removalCheck(this.tokens, { layer: ref.layer, fullPath: ref.fullPath })
+  }
+
+  private _closeRemove() {
+    this.removeRef = null
+    this.removeCheck = null
+  }
+
+  private _confirmRemove(event: CustomEvent<RemoveTokenSaveDetail>) {
+    const ref = this.removeRef
+    const check = this.removeCheck
+    if (ref === null) return
+
+    this._remember()
+    let next = removeToken(this.tokens, { layer: ref.layer, fullPath: ref.fullPath })
+
+    if (event.detail.removeOverrides) {
+      for (const themeId of check?.overriddenBy ?? []) next = removeThemeOverride(next, themeId, ref.fullPath)
     }
+
+    this.tokens = next
+    this.revision += 1
+    this._closeRemove()
+    const overrides = check === null ? [] : check.overriddenBy
+    this._showStatus(`Removed ${ref.fullPath}${overrides.length === 0 ? '' : ` and its ${overrides.join('/')} override`}.`)
   }
 
-  async _loadJsonFile(event: Event) {
-    const input = event.target as HTMLInputElement
-    const file = input.files?.[0]
-    input.value = ''
-    if (!file) return
+  /** Writes a new token, or shows the reason it cannot be written. */
+  private _saveToken(event: CustomEvent<AddTokenSaveDetail>) {
+    const result = addToken(this.tokens, { layer: this.layer, ...event.detail })
 
-    if (file.size > MAX_IMPORT_BYTES) {
-      this.fileLoadError = `That file is ${Math.round(file.size / 1024)} kB — imports are limited to ${MAX_IMPORT_BYTES / 1024} kB.`
+    if (!result.ok) {
+      this.addError = result.error
       return
     }
 
-    try {
-      const text = await file.text()
-      const json: unknown = JSON.parse(text)
-      const imported = fromDesignTokensFormat(json)
-      if (imported === null || imported.brands.length === 0) {
-        throw new Error('The JSON file does not contain a brands collection.')
+    this._remember()
+    this.tokens = result.tokens
+    this.revision += 1
+    this.addOpen = false
+    this.addError = ''
+    // Show what was just added: its group, with the search cleared.
+    this.group = layerPathOf(this.layer, event.detail.fullPath).split('.')[0] ?? this.group
+    this.query = ''
+    this._showStatus(`Added ${event.detail.fullPath} — it declares ${toCssVarName(event.detail.fullPath)}.`)
+  }
+
+  /**
+   * Writes a whole palette. Every step goes through `addToken`, so a collision on the third step
+   * leaves the model untouched rather than half a palette in the files.
+   */
+  private _saveScale(event: CustomEvent<AddScaleSaveDetail>) {
+    const { prefix, steps, values } = event.detail
+    let candidate = this.tokens
+
+    for (const [index, step] of steps.entries()) {
+      const result = addToken(candidate, { layer: 'primitives', fullPath: `primitives.color.${prefix}.${step}`, type: 'color', value: values[index] ?? '' })
+
+      if (!result.ok) {
+        this.scaleError = result.error
+        return
       }
 
-      this._applyBrands(imported.brands, [...imported.warnings, ...duplicateKeyNotes(text, file.name)])
-      this.fileLoadError = ''
-    } catch (error) {
-      this.fileLoadError =
-        error instanceof SyntaxError
-          ? 'The selected file is not valid JSON.'
-          : `Unable to load tokens: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-
-  downloadTokensFile() {
-    const payload = toJsonText(toDesignTokensFormat(this.brands))
-    const blob = new Blob([payload], { type: 'application/json' })
-    const href = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = href
-    link.download = 'tokens.json'
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    // Revoking in the same tick can cancel the download in Safari/Firefox.
-    window.setTimeout(() => URL.revokeObjectURL(href), 0)
-  }
-
-  get currentBrand(): Brand | undefined {
-    return this.brands.find((brand) => brand.id === this.selectedBrand) ?? this.brands[0]
-  }
-
-  get currentThemeTokens(): ThemeTokens {
-    return this.currentBrand?.themes?.[this.selectedTheme] ?? {}
-  }
-
-  /**
-   * Tells the token rows that the model changed shape. Lit only sees *new* property values and
-   * the rows are handed the very same theme object on every render, so without this version an
-   * alias picker keeps the options it rendered before a primitive was added. Deliberately not
-   * called for value edits: re-rendering the row the user is typing in would replace its text
-   * field with the fallback colour (see `tkn-token-row`).
-   */
-  private _tokensChanged() {
-    this.tokenRevision += 1
-  }
-
-  /** A colour edited in a primitive token row. */
-  _handleTokenChange(event: CustomEvent<TokenChangeDetail>) {
-    const { section, group, key, value } = event.detail
-    const theme = this.currentThemeTokens
-    if (section === 'primitives') {
-      const primitives = theme.primitives ?? (theme.primitives = {})
-      const tokens = primitives[group ?? this.primitiveFilter] ?? (primitives[group ?? this.primitiveFilter] = {})
-      tokens[key] = value
-    } else {
-      const tokens = (theme[section] as ColorTokens | undefined) ?? ((theme[section] = {}) as ColorTokens)
-      tokens[key] = value
-    }
-    this.requestUpdate()
-  }
-
-  /** A reference picked in a semantic/component token row. */
-  _handleTokenLink(event: CustomEvent<TokenChangeDetail>) {
-    const { section, key, value } = event.detail
-    const tokens = this.currentThemeTokens[section] as ColorTokens | undefined
-    if (tokens === undefined) return
-
-    tokens[key] = value.startsWith('#') ? value : `{${value}}`
-    this._tokensChanged()
-  }
-
-  _openSemanticDialog() {
-    this.semanticDialogError = ''
-    this.semanticDialogOpen = true
-  }
-
-  _closeSemanticDialog() {
-    this.semanticDialogOpen = false
-    this.semanticDialogError = ''
-  }
-
-  _saveSemanticToken(event: CustomEvent<SemanticSaveDetail>) {
-    const key = toKebab(event.detail.tokenName)
-    const themes = this.brands.flatMap((brand) => Object.values(brand.themes))
-    if (themes.some((theme) => Object.hasOwn(theme.semantic ?? {}, key))) {
-      this.semanticDialogError = `A semantic token named ${key} already exists.`
-      return
+      candidate = result.tokens
     }
 
-    themes.forEach((theme) => {
-      const semantic = theme.semantic ?? (theme.semantic = {})
-      semantic[key] = `{${event.detail.reference}}`
-    })
-    this.semanticDialogOpen = false
-    this.semanticDialogError = ''
-    this._tokensChanged()
+    this._remember()
+    this.tokens = candidate
+    this.revision += 1
+    this.scaleOpen = false
+    this.scaleError = ''
+    this.layer = 'primitives'
+    this.group = 'color'
+    this.query = ''
+    this._showStatus(`Added ${String(steps.length)} steps to color.${prefix}.`)
   }
 
-  _openPrimitiveDialog() {
-    this.primitiveDialogError = ''
-    this.primitiveDialogOpen = true
+  private _aliasOptionsFor(ref: TokenRef) {
+    return aliasCandidates(this.tokens, ref.layer, this.themeId, ref.fullPath)
   }
 
-  _closePrimitiveDialog() {
-    this.primitiveDialogOpen = false
-    this.primitiveDialogError = ''
-  }
-
-  _savePrimitiveToken(event: CustomEvent<PrimitiveColorSaveDetail>) {
-    const brand = this.currentBrand
-    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
-    if (!themes.length) return
-
-    const { tokenName: key, colorValue: value } = event.detail
-    if (themes.some((theme) => Object.hasOwn(theme.primitives.color ?? {}, key))) {
-      this.primitiveDialogError = `A primitive named ${key} already exists.`
-      return
-    }
-
-    themes.forEach((theme) => {
-      const colorTokens = theme.primitives.color ?? (theme.primitives.color = {})
-      colorTokens[key] = value
-    })
-    this.primitiveDialogOpen = false
-    this.primitiveDialogError = ''
-    this._tokensChanged()
-  }
-
-  _openScaleDialog() {
-    this.scaleDialogError = ''
-    this.scaleDialogOpen = true
-  }
-
-  _closeScaleDialog() {
-    this.scaleDialogOpen = false
-    this.scaleDialogError = ''
-  }
-
-  _saveScale(event: CustomEvent<ScaleSaveDetail>) {
-    const brand = this.currentBrand
-    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
-    if (!themes.length) return
-
-    const { prefix, steps, values } = event.detail
-    const names = steps.map((step) => `${prefix}${step}`)
-    const duplicate = names.find((name) => themes.some((theme) => Object.hasOwn(theme.primitives.color ?? {}, name)))
-    if (duplicate) {
-      this.scaleDialogError = `A primitive named ${duplicate} already exists.`
-      return
-    }
-
-    themes.forEach((theme) => {
-      names.forEach((name, index) => {
-        const colorTokens = theme.primitives.color ?? (theme.primitives.color = {})
-        colorTokens[name] = values[index] ?? ''
-      })
-    })
-    this.scaleDialogOpen = false
-    this.scaleDialogError = ''
-    this._tokensChanged()
-  }
-
-  _openGradientDialog() {
-    const dialog = this.renderRoot.querySelector('primitive-gradient-dialog') as (HTMLElement & { initial: unknown }) | null
-    if (dialog) dialog.initial = null
-    this.gradientDialogError = ''
-    this.gradientDialogOpen = true
-  }
-
-  _editGradient(event: CustomEvent<{ key: string; value: unknown }>) {
-    const dialog = this.renderRoot.querySelector('primitive-gradient-dialog') as (HTMLElement & { initial: unknown }) | null
-    if (!dialog) return
-    dialog.initial = { key: event.detail.key, value: event.detail.value }
-    this.gradientDialogError = ''
-    this.gradientDialogOpen = true
-  }
-
-  _closeGradientDialog() {
-    this.gradientDialogOpen = false
-    this.gradientDialogError = ''
-  }
-
-  _saveGradient(event: CustomEvent<GradientSaveDetail>) {
-    const brand = this.currentBrand
-    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
-    if (!themes.length) return
-
-    const { tokenName, originalTokenName, stops, extensions } = event.detail
-    const duplicate = themes.some((theme) => Object.hasOwn(theme.primitives.gradient ?? {}, tokenName) && tokenName !== originalTokenName)
-    if (duplicate) {
-      this.gradientDialogError = `A primitive named ${tokenName} already exists.`
-      return
-    }
-
-    themes.forEach((theme) => {
-      const gradients = theme.primitives.gradient ?? (theme.primitives.gradient = {})
-      if (originalTokenName && originalTokenName !== tokenName) delete gradients[originalTokenName]
-      gradients[tokenName] = { stops, extensions }
-    })
-    this.gradientDialogOpen = false
-    this.gradientDialogError = ''
-    this._tokensChanged()
-  }
-
-  _openSpatialDialog() {
-    this.spatialDialogError = ''
-    this.spatialDialogOpen = true
-  }
-
-  _closeSpatialDialog() {
-    this.spatialDialogOpen = false
-    this.spatialDialogError = ''
-  }
-
-  _saveSpatial(event: CustomEvent<SpatialSaveDetail>) {
-    const brand = this.currentBrand
-    const themes = Object.values(brand?.themes ?? {}).filter(hasPrimitives)
-    if (!themes.length) return
-
-    const { tokenName: key, value } = event.detail
-    const group = this.primitiveFilter === 'structural' ? 'structural' : 'spatial'
-    if (themes.some((theme) => Object.hasOwn(theme.primitives[group] ?? {}, key))) {
-      this.spatialDialogError = `A primitive named ${key} already exists.`
-      return
-    }
-
-    themes.forEach((theme) => {
-      const dimensionTokens = theme.primitives[group] ?? (theme.primitives[group] = {})
-      dimensionTokens[key] = value
-    })
-    this.spatialDialogOpen = false
-    this.spatialDialogError = ''
-    this._tokensChanged()
-  }
-
-  _startAddBrand() {
-    this.addingBrand = true
-    this.newBrandName = `Brand ${this.brands.length + 1}`
-  }
-
-  _cancelAddBrand() {
-    this.addingBrand = false
-    this.newBrandName = ''
-  }
-
-  _createBrand(event: SubmitEvent) {
-    event.preventDefault()
-    const brandName = this.newBrandName.trim()
-    if (brandName === '') return
-
-    const nextBrand = seedBrand(brandName, NEW_BRAND_PALETTE)
-    nextBrand.id = uniqueBrandId(
-      brandName,
-      this.brands.map((brand) => brand.id),
-    )
-
-    this.brands = [...this.brands, nextBrand]
-    this.selectedBrand = nextBrand.id
-    this.addingBrand = false
-    this.newBrandName = ''
-  }
-
-  async _copyToClipboard(value: string, label: string) {
-    if (value === '') return
-
-    try {
-      if (navigator.clipboard === undefined) throw new Error('Clipboard API unavailable')
-      await navigator.clipboard.writeText(value)
-      this._showCopyStatus(`${label} copied to clipboard.`)
-    } catch {
-      this._showCopyStatus(`${label} ready to copy from the export panel.`)
-    }
-  }
-
-  private _showCopyStatus(message: string) {
+  private _showStatus(message: string) {
     this.copyStatus = message
     window.setTimeout(() => {
       if (this.copyStatus === message) this.copyStatus = ''
     }, 4000)
   }
 
-  /** Focus the brand name field as soon as the inline form exists. */
-  updated(changedProperties: PropertyValues<this>) {
-    if (!changedProperties.has('addingBrand') || !this.addingBrand) return
-    this.renderRoot.querySelector<HTMLInputElement>('#new-brand-name')?.select()
+  private async _copy(text: string, label: string) {
+    if (text === '') return
+
+    try {
+      if (navigator.clipboard === undefined) throw new Error('Clipboard API unavailable')
+      await navigator.clipboard.writeText(text)
+      this._showStatus(`${label} copied to clipboard.`)
+    } catch {
+      this._showStatus(`Copying ${label} needs a secure context — the text box below has it all.`)
+    }
   }
 
-  private _renderImportNotes() {
-    const notes = [
-      ...this.importWarnings,
-      ...this.importIssues.map(
-        (issue) =>
-          `${issue.brandId} / ${issue.theme} / ${issue.section}.${issue.key}: unresolved ${issue.error} reference${issue.reference === undefined ? '' : ` ${issue.reference}`}`,
-      ),
-    ]
-    if (notes.length === 0) return nothing
+  private _openFilePicker() {
+    this.renderRoot.querySelector<HTMLInputElement>('#json-file-input')?.click()
+  }
+
+  private async _loadJsonFile(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+
+    if (file.size > MAX_IMPORT_BYTES) {
+      this.loadError = `That file is ${Math.round(file.size / 1024)} kB — imports are limited to ${MAX_IMPORT_BYTES / 1024} kB.`
+      return
+    }
+
+    try {
+      const text = await file.text()
+      const imported = fromSnapshot(JSON.parse(text) as unknown)
+      if (imported === null) throw new Error('a pebble snapshot needs "primitives", "semantic", "components" and "themes"')
+
+      this.tokens = imported
+      this.themeId = imported.config.defaultTheme ?? imported.config.themes[0]?.id ?? 'light'
+      this.layer = 'primitives'
+      this.group = groupsOfLayer(imported, 'primitives')[0] ?? ''
+      this.query = ''
+      this.revision += 1
+      this.loadError = ''
+      this.importNotes = duplicateKeyNotes(text, file.name)
+      this._showStatus(`${file.name} loaded.`)
+    } catch (error) {
+      this.loadError =
+        error instanceof SyntaxError
+          ? 'The selected file is not valid JSON.'
+          : `Unable to load tokens: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  private _downloadSnapshot() {
+    const payload = toJsonText(toSnapshot(this.tokens))
+    const blob = new Blob([payload], { type: 'application/json' })
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = href
+    link.download = 'pebble-tokens.json'
+    document.body.append(link)
+    link.click()
+    link.remove()
+    // Revoking in the same tick can cancel the download in Safari/Firefox.
+    window.setTimeout(() => URL.revokeObjectURL(href), 0)
+    this._showStatus('Snapshot saved — "npm run tokens:push" writes it back into the pebble repo.')
+  }
+
+  private _renderNotes(issues: TokenIssue[]) {
+    const notes = this.importNotes
+    if (issues.length === 0 && notes.length === 0) {
+      return html`<p class="status ok" role="status">No notes on this theme: every reference resolves and every custom property is declared.</p>`
+    }
+
+    const byKind = new Map<TokenIssue['kind'], TokenIssue[]>()
+    for (const issue of issues) byKind.set(issue.kind, [...(byKind.get(issue.kind) ?? []), issue])
 
     return html`
-      <details class="import-notes" aria-live="polite">
-        <summary>${notes.length} ${notes.length === 1 ? 'note' : 'notes'} on the loaded tokens</summary>
-        <ul>
-          ${notes.slice(0, 50).map((note) => html`<li>${note}</li>`)}
-        </ul>
+      <details class="notes">
+        <summary>${issues.length + notes.length} note(s) on this theme</summary>
+        ${
+          notes.length === 0
+            ? nothing
+            : html`<h3>Loading</h3>
+                <ul>
+                  ${notes.map((note) => html`<li>${note}</li>`)}
+                </ul>`
+        }
+        ${[...byKind].map(
+          ([kind, entries]) => html`
+            <h3>${ISSUE_LABELS[kind]} (${entries.length})</h3>
+            <ul>
+              ${entries.slice(0, 25).map((issue) => html`<li><code>${issue.path}</code> — ${issue.detail}</li>`)}
+              ${entries.length > 25 ? html`<li>… and ${entries.length - 25} more</li>` : nothing}
+            </ul>
+          `,
+        )}
       </details>
     `
   }
 
-  private _primitiveTokenCount(theme: ThemeTokens): number {
-    return Object.values(theme.primitives ?? {}).reduce((count, group) => count + Object.keys(group ?? {}).length, 0)
-  }
-
-  private _renderPrimitiveSection(theme: ThemeTokens) {
-    const tokens = theme.primitives?.[this.primitiveFilter] ?? {}
-    return html`
-      <article class="token-section">
-        <div class="section-header">
-          <div class="section-title">
-            <h2>primitives</h2>
-            <span>${Object.keys(tokens).length} ${this.primitiveFilter} tokens</span>
-          </div>
-          <div class="section-actions">
-            <label class="primitive-filter">
-              <span>Primitive type</span>
-              <select
-                name="primitive-filter"
-                .value=${this.primitiveFilter}
-                @change=${(event: Event) => {
-                  this.primitiveFilter = (event.target as HTMLSelectElement).value as PrimitiveGroupName
-                }}
-              >
-                <option value="color">Color</option>
-                <option value="spatial">Spatial</option>
-                <option value="structural">Structural</option>
-                <option value="gradient">Gradient</option>
-              </select>
-            </label>
-            ${
-              this.primitiveFilter === 'color'
-                ? html`
-                    <button class="section-action" @click=${this._openPrimitiveDialog}>+ Add color</button>
-                    <button class="section-action" @click=${this._openScaleDialog}>+ Add scale</button>
-                  `
-                : this.primitiveFilter === 'gradient'
-                  ? html`<button class="section-action" @click=${this._openGradientDialog}>+ Add gradient</button>`
-                  : html`<button class="section-action" @click=${this._openSpatialDialog}>+ Add ${this.primitiveFilter}</button>`
-            }
-          </div>
-        </div>
-        <div class="token-grid">
-          ${repeat(
-            Object.keys(tokens),
-            (key) => key,
-            (key) => html`
-              <tkn-token-row
-                token-key=${key}
-                section="primitives"
-                primitive-group=${this.primitiveFilter}
-                .theme=${theme}
-                .revision=${this.tokenRevision}
-                @token-change=${this._handleTokenChange}
-                @gradient-edit=${this._editGradient}
-              ></tkn-token-row>
-            `,
-          )}
-        </div>
-      </article>
-    `
-  }
-
   render() {
-    const brand = this.currentBrand
-    const theme = this.currentThemeTokens
-    if (!brand) return html``
+    const themes = summariseThemes(this.tokens)
+    const issues = issuesForTheme(cachedIssues(this.tokens), this.themeId)
+    const visible = this.visible
+    const searching = this.query.trim() !== ''
 
     return html`
-      <primitive-color-dialog
-        .open=${this.primitiveDialogOpen}
-        .error=${this.primitiveDialogError}
-        @cancel=${this._closePrimitiveDialog}
-        @save=${this._savePrimitiveToken}
-      ></primitive-color-dialog>
-      <primitive-scale-dialog
-        .open=${this.scaleDialogOpen}
-        .error=${this.scaleDialogError}
-        @cancel=${this._closeScaleDialog}
-        @save=${this._saveScale}
-      ></primitive-scale-dialog>
-      <primitive-gradient-dialog
-        .open=${this.gradientDialogOpen}
-        .error=${this.gradientDialogError}
-        @cancel=${this._closeGradientDialog}
-        @save=${this._saveGradient}
-      ></primitive-gradient-dialog>
-      <primitive-spatial-dialog
-        .open=${this.spatialDialogOpen}
-        .error=${this.spatialDialogError}
-        @cancel=${this._closeSpatialDialog}
-        @save=${this._saveSpatial}
-      ></primitive-spatial-dialog>
-      <semantic-token-dialog
-        .open=${this.semanticDialogOpen}
-        .error=${this.semanticDialogError}
-        .options=${referenceOptions(theme, 'semantic', '')}
-        @cancel=${this._closeSemanticDialog}
-        @save=${this._saveSemanticToken}
-      ></semantic-token-dialog>
+      <tkn-add-token-dialog
+        .open=${this.addOpen}
+        .layer=${this.layer}
+        .groups=${groupsOfLayer(this.tokens, this.layer)}
+        .error=${this.addError}
+        @cancel=${this._closeAddDialog}
+        @save=${this._saveToken}
+      ></tkn-add-token-dialog>
 
-      <div class="app-shell" style=${buildThemeStyle(theme)}>
+      <tkn-add-scale-dialog .open=${this.scaleOpen} .error=${this.scaleError} @cancel=${this._closeScaleDialog} @save=${this._saveScale}></tkn-add-scale-dialog>
+
+      <tkn-remove-token-dialog
+        .open=${this.removeRef !== null}
+        .path=${this.removeRef?.fullPath ?? ''}
+        .check=${this.removeCheck}
+        @cancel=${this._closeRemove}
+        @confirm=${this._confirmRemove}
+      ></tkn-remove-token-dialog>
+
+      <div class="shell">
         <header class="topbar">
-          <div>
-            <p class="eyebrow">Design token manager</p>
+          <div class="title">
+            <p class="eyebrow">
+              ${this.tokens.config.name ?? 'Pebble design tokens'}${this.tokens.config.version === undefined ? '' : ` · v${this.tokens.config.version}`}
+            </p>
             <h1>My first tokens™</h1>
+            <p class="lede">
+              ${String(countLayer(this.tokens, 'primitives'))} primitives · ${String(countLayer(this.tokens, 'semantic'))} semantic ·
+              ${String(countLayer(this.tokens, 'components'))} component tokens, edited as the files pebble's build reads.
+            </p>
           </div>
 
           <div class="toolbar">
-            <label class="toolbar-field">
-              <span>Brand</span>
-              <select
-                name="brand"
-                .value=${this.selectedBrand}
-                @change=${(event: Event) => {
-                  this.selectedBrand = (event.target as HTMLSelectElement).value
-                }}
-              >
-                ${this.brands.map((item) => html`<option value=${item.id}>${item.name}</option>`)}
-              </select>
-            </label>
-
-            <label class="toolbar-field">
+            <label class="field">
               <span>Theme</span>
-              <select
-                name="theme"
-                .value=${this.selectedTheme}
-                @change=${(event: Event) => {
-                  this.selectedTheme = (event.target as HTMLSelectElement).value
-                }}
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+              <select name="theme" .value=${this.themeId} @change=${this._handleTheme}>
+                ${this.tokens.config.themes.map((theme) => html`<option value=${theme.id}>${theme.name}</option>`)}
               </select>
             </label>
-
-            ${
-              this.addingBrand
-                ? html`
-                    <form class="brand-form" @submit=${this._createBrand}>
-                      <label class="toolbar-field">
-                        <span>New brand</span>
-                        <input
-                          id="new-brand-name"
-                          name="new-brand"
-                          type="text"
-                          required
-                          .value=${this.newBrandName}
-                          @input=${(event: Event) => {
-                            this.newBrandName = (event.target as HTMLInputElement).value
-                          }}
-                        />
-                      </label>
-                      <button class="ghost" type="submit">Create</button>
-                      <button class="ghost" type="button" @click=${this._cancelAddBrand}>Cancel</button>
-                    </form>
-                  `
-                : html`<button class="ghost" @click=${this._startAddBrand}>+ Add brand</button>`
-            }
-
-            <button class="ghost" @click=${() => this.renderRoot.querySelector<HTMLInputElement>('#json-file-input')?.click()}>Load JSON</button>
-            <button class="ghost" @click=${this.downloadTokensFile}>Save JSON</button>
+            <button class="ghost" type="button" @click=${this._openFilePicker}>Load snapshot</button>
+            <button class="ghost" type="button" @click=${this._downloadSnapshot}>Save snapshot</button>
+            <button class="ghost" type="button" @click=${() => this._copy(cachedTokensCss(this.tokens), 'tokens.css')}>Copy tokens.css</button>
             <input id="json-file-input" name="tokens-file" type="file" accept="application/json,.json" hidden @change=${this._loadJsonFile} />
           </div>
         </header>
 
-        ${this.fileLoadError ? html`<p class="file-error" role="alert">${this.fileLoadError}</p>` : nothing} ${this._renderImportNotes()}
+        ${this.loadError === '' ? nothing : html`<p class="alert" role="alert">${this.loadError}</p>`}
+        ${
+          this.copyStatus === '' && this.undoTokens === undefined
+            ? nothing
+            : html`
+                <p class="status" role="status">
+                  <span>${this.copyStatus}</span>
+                  ${this.undoTokens === undefined ? nothing : html`<button class="link" type="button" @click=${this._undo}>Undo</button>`}
+                </p>
+              `
+        }
+        ${this._renderNotes(issues)}
 
         <main class="layout">
-          <section class="token-panel">
-            ${this._renderPrimitiveSection(theme)}
-            ${repeat(
-              Object.entries(theme).filter(([section]) => section !== 'primitives'),
-              ([section]) => section,
-              ([section, values]) => html`
-                <article class="token-section">
-                  <div class="section-header">
-                    <div class="section-title">
-                      <h2>${section}</h2>
-                      <span>${Object.keys(values ?? {}).length} tokens</span>
-                    </div>
-                    ${section === 'semantic' ? html`<button class="section-action" @click=${this._openSemanticDialog}>+ Add semantic</button>` : nothing}
-                  </div>
+          <nav class="side" aria-label="Layers and groups">
+            <div class="layers" role="group" aria-label="Layer">
+              ${LAYERS.map(
+                (layer) => html`
+                  <button
+                    class=${this.layer === layer ? 'layer current' : 'layer'}
+                    type="button"
+                    aria-pressed=${this.layer === layer ? 'true' : 'false'}
+                    @click=${() => this._selectLayer(layer)}
+                  >
+                    ${LAYER_LABELS[layer]}<small>${String(countLayer(this.tokens, layer))}</small>
+                  </button>
+                `,
+              )}
+            </div>
 
-                  <div class="token-grid">
-                    ${repeat(
-                      Object.keys(values ?? {}),
-                      (key) => key,
-                      (key) => html`
-                        <tkn-token-row
-                          token-key=${key}
-                          section=${section}
-                          .theme=${theme}
-                          .revision=${this.tokenRevision}
-                          @token-change=${this._handleTokenChange}
-                          @token-link=${this._handleTokenLink}
-                        ></tkn-token-row>
+            <label class="field">
+              <span>Group</span>
+              <select name="group" .value=${this.group} @change=${this._handleGroup}>
+                ${groupsOfLayer(this.tokens, this.layer).map(
+                  (name) => html`<option value=${name}>${name} (${String(tokensInGroup(this.tokens, this.layer, name).length)})</option>`,
+                )}
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Find a token</span>
+              <input type="search" name="query" placeholder="path or value" .value=${this.query} @input=${this._handleQuery} />
+            </label>
+
+            <ul class="themes">
+              ${themes.map((theme) => html`<li><strong>${theme.name}</strong> · ${String(theme.variables)} vars · ${String(theme.overrides)} overrides</li>`)}
+            </ul>
+
+            <details class="export">
+              <summary>tokens.css as pebble builds it</summary>
+              <textarea name="tokens-css" readonly aria-label="Generated tokens.css" .value=${cachedTokensCss(this.tokens)}></textarea>
+            </details>
+          </nav>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>${searching ? 'Search results' : `${LAYER_LABELS[this.layer]} · ${this.group}`}</h2>
+              <div class="panel-actions">
+                <span>${String(visible.length)} token${visible.length === 1 ? '' : 's'}${searching ? ` for “${this.query.trim()}”` : ''}</span>
+                <button class="ghost small" type="button" @click=${this._openAddDialog}>+ Add token</button>
+                ${this.layer === 'primitives' ? html`<button class="ghost small" type="button" @click=${this._openScaleDialog}>+ Add scale</button>` : nothing}
+              </div>
+            </div>
+
+            <div class="rows">
+              ${
+                visible.length === 0
+                  ? html`<p class="empty">Nothing to show here.</p>`
+                  : repeat(
+                      visible,
+                      (ref) => `${ref.layer}:${ref.fullPath}`,
+                      (ref) => html`
+                        <pebble-token-row
+                          .ref=${ref}
+                          .value=${authoredValueOf(this.tokens, this.themeId, ref)}
+                          .resolved=${this.resolvedValues[ref.fullPath]}
+                          .editing=${this._editingFor(ref)}
+                          .revision=${this.revision}
+                          .aliasOptions=${() => this._aliasOptionsFor(ref)}
+                          @value-change=${this._handleValueChange}
+                          @reset-override=${this._handleResetOverride}
+                          @remove-token=${this._handleRemove}
+                        ></pebble-token-row>
                       `,
-                    )}
-                  </div>
-                </article>
-              `,
-            )}
+                    )
+              }
+            </div>
           </section>
-
-          <aside class="preview-panel">
-            <div class="preview-card">
-              <div class="preview-header">
-                <span>${brand.name}</span>
-                <span class="badge">${this.selectedTheme}</span>
-              </div>
-
-              <div class="sample-surface">
-                <button class="primary-action">Primary CTA</button>
-                <button class="secondary-action">Secondary</button>
-              </div>
-
-              <div class="mini-stats">
-                <div>
-                  <small>Primitives</small>
-                  <strong>${this._primitiveTokenCount(theme)}</strong>
-                </div>
-                <div>
-                  <small>Semantic</small>
-                  <strong>${Object.keys(theme.semantic ?? {}).length}</strong>
-                </div>
-                <div>
-                  <small>Components</small>
-                  <strong>${Object.keys(theme.component ?? {}).length}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div class="export-box">
-              <div class="box-header">
-                <h3>Web CSS vars</h3>
-                <button @click=${() => this._copyToClipboard(this.cssOutput, 'CSS variables')}>Copy</button>
-              </div>
-              <textarea name="css-output" readonly aria-label="Exported CSS variables" .value=${this.cssOutput}></textarea>
-              ${this.copyStatus === '' ? nothing : html`<p class="copy-status" role="status">${this.copyStatus}</p>`}
-            </div>
-          </aside>
         </main>
       </div>
     `
@@ -719,10 +592,20 @@ export class TokenSyncApp extends LitElement {
 
   static styles = css`
     :host {
+      /* The app is dressed in the tokens it edits. */
+      --app-bg: var(--semantic-color-background-primary);
+      --app-panel: var(--semantic-color-surface-default);
+      --app-text: var(--semantic-color-text-primary);
+      --app-muted: var(--semantic-color-text-secondary);
+      --app-border: var(--semantic-color-border-default);
+      --app-accent: var(--semantic-color-brand-primary);
+      --app-hover: var(--semantic-color-interactive-hover);
+      --app-input: var(--semantic-color-surface-sunken);
+      --app-danger: var(--semantic-color-status-error);
       display: block;
       min-height: 100vh;
-      background: var(--page-bg, #f8fafc);
-      color: var(--text, #0f172a);
+      background: var(--app-bg, #ffffff);
+      color: var(--app-text, #0f172a);
       font-family: Inter, 'Segoe UI', sans-serif;
     }
 
@@ -730,360 +613,275 @@ export class TokenSyncApp extends LitElement {
       box-sizing: border-box;
     }
 
-    .app-shell {
-      max-width: 1520px;
+    .shell {
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 32px;
-      background: var(--page-bg);
-      color: var(--text);
+      padding: 24px;
     }
 
     .topbar {
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 28px;
-      padding: 20px 24px;
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.04);
-      backdrop-filter: blur(8px);
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
     }
 
     .eyebrow {
-      margin: 0 0 8px;
+      margin: 0 0 4px;
+      color: var(--app-muted, #64748b);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
-      font-size: 11px;
-      opacity: 0.7;
     }
 
     h1 {
       margin: 0;
-      font-size: clamp(2rem, 4vw, 3rem);
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
       line-height: 1.1;
+    }
+
+    .lede {
+      margin: 6px 0 0;
+      max-width: 62ch;
+      color: var(--app-muted, #64748b);
+      font-size: 0.85rem;
     }
 
     .toolbar {
       display: flex;
-      align-items: end;
-      gap: 12px;
+      align-items: flex-end;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
-    .toolbar-field {
+    .field {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      font-size: 12px;
-      opacity: 0.8;
-    }
-
-    .brand-form {
-      display: flex;
-      align-items: end;
-      gap: 8px;
-      margin: 0;
-    }
-
-    .brand-form input {
-      min-height: 42px;
-      min-width: 160px;
-      padding: 0 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: rgba(15, 23, 42, 0.04);
-      color: var(--text);
-      font: inherit;
-    }
-
-    .import-notes {
-      margin: -12px 0 18px;
-      padding: 10px 14px;
-      border: 1px solid #fdb022;
-      border-radius: 10px;
-      background: #fffaeb;
-      color: #7a2e0e;
-      font-size: 13px;
-    }
-
-    .import-notes summary {
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .import-notes ul {
-      margin: 8px 0 0;
-      padding-left: 18px;
-    }
-    .import-notes li {
-      margin-bottom: 4px;
-    }
-
-    .copy-status {
-      margin: 10px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .file-error {
-      margin: -12px 0 18px;
-      padding: 10px 14px;
-      border: 1px solid #fda29b;
-      border-radius: 10px;
-      background: #fef3f2;
-      color: #b42318;
-      font-size: 13px;
+      gap: 4px;
+      color: var(--app-muted, #64748b);
+      font-size: 0.72rem;
     }
 
     select,
-    button,
-    input {
-      font: inherit;
-    }
-
-    select,
+    input[type='search'],
     input[type='text'] {
-      min-height: 42px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.04);
-      color: var(--text);
-      padding: 0 12px;
+      min-height: 36px;
+      padding: 0 10px;
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
+      border-radius: 8px;
+      background: var(--app-panel, #ffffff);
+      color: var(--app-text, #0f172a);
+      font: inherit;
+      font-size: 0.82rem;
     }
 
-    select option {
-      background: #ffffff;
-      color: #0f172a;
-    }
-
-    button {
-      cursor: pointer;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--primary);
-      color: white;
-      padding: 10px 16px;
-      font-weight: 600;
-    }
-
-    button.ghost {
+    .ghost {
+      min-height: 36px;
+      padding: 0 14px;
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
+      border-radius: 8px;
       background: transparent;
-      color: var(--text);
+      color: var(--app-text, #0f172a);
+      font: inherit;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+
+    .ghost:hover {
+      background: var(--app-hover, rgba(37, 99, 235, 0.12));
+    }
+
+    .alert,
+    .status {
+      margin: 0 0 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+    }
+
+    .alert {
+      border: 1px solid var(--app-danger, #dc2626);
+      color: var(--app-danger, #dc2626);
+    }
+
+    .status {
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
+      color: var(--app-muted, #64748b);
+    }
+
+    .status .link {
+      margin-left: 8px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--app-accent, #2563eb);
+      font: inherit;
+      font-size: 0.82rem;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .status.ok {
+      border-color: transparent;
+      padding-bottom: 0;
+    }
+
+    .notes {
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
+      border-radius: 10px;
+      font-size: 0.8rem;
+    }
+
+    .notes summary {
+      cursor: pointer;
+    }
+
+    .notes h3 {
+      margin: 12px 0 4px;
+      font-size: 0.8rem;
+    }
+
+    .notes ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .notes code {
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
     }
 
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
-      gap: 28px;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
     }
 
-    .token-panel,
-    .preview-panel {
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .side {
       display: flex;
       flex-direction: column;
-      gap: 18px;
-    }
-
-    .token-section,
-    .preview-card,
-    .export-box {
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      background: var(--panel-bg);
-      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-    }
-
-    /* The card is part of the sample, so it reads the component tokens, not the app chrome. */
-    .preview-card {
-      border-color: var(--card-border);
-      background: var(--surface);
-    }
-
-    .token-section {
-      padding: 18px 18px 12px;
-    }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-
-    .section-header h2 {
-      margin: 0;
-      font-size: 1rem;
-      text-transform: capitalize;
-    }
-
-    .section-header span {
-      opacity: 0.7;
-      font-size: 12px;
-    }
-
-    .section-action {
-      margin-left: auto;
-      padding: 7px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-    }
-
-    .section-title,
-    .section-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .primitive-filter select {
-      min-height: unset;
-      padding: 7px 10px;
-      border-radius: 8px;
-      font-size: 12px;
-    }
-
-    .token-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 12px;
-    }
-
-    .preview-card,
-    .export-box {
-      padding: 18px;
-    }
-
-    .preview-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .badge {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary);
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: capitalize;
-    }
-
-    .sample-surface {
-      display: grid;
-      gap: 16px;
-      padding: 20px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, var(--page-bg), rgba(148, 163, 184, 0.13));
-      border: 1px solid var(--border);
-    }
-
-    .primary-action,
-    .secondary-action {
-      width: 100%;
-      min-height: 48px;
-      border-radius: 12px;
-    }
-
-    .primary-action {
-      background: var(--button-primary-bg);
-      color: var(--button-primary-text);
-      border: none;
-    }
-
-    .secondary-action {
-      background: var(--button-secondary-bg);
-      color: var(--button-secondary-text);
-      border: none;
-    }
-
-    .primary-action:focus-visible,
-    .secondary-action:focus-visible {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 2px;
-    }
-
-    .mini-stats {
-      margin-top: 18px;
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .mini-stats div {
-      padding: 12px 10px;
+      gap: 14px;
+      padding: 16px;
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
       border-radius: 14px;
-      border: 1px solid var(--border);
-      background: rgba(148, 163, 184, 0.06);
-      display: flex;
-      flex-direction: column;
+      background: var(--app-panel, #ffffff);
+    }
+
+    .layers {
+      display: grid;
       gap: 6px;
-      text-align: center;
     }
 
-    .mini-stats small {
-      opacity: 0.7;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-size: 10px;
-    }
-
-    .mini-stats strong {
-      font-size: 1.4rem;
-    }
-
-    .box-header {
+    .layer {
       display: flex;
+      align-items: baseline;
       justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--app-text, #0f172a);
+      font: inherit;
+      font-size: 0.85rem;
+      text-align: left;
+      cursor: pointer;
     }
 
-    .box-header h3 {
+    .layer small {
+      color: var(--app-muted, #64748b);
+    }
+
+    .layer:hover {
+      background: var(--app-hover, rgba(37, 99, 235, 0.12));
+    }
+
+    .layer.current {
+      border-color: var(--app-accent, #2563eb);
+      color: var(--app-accent, #2563eb);
+    }
+
+    .themes {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--app-muted, #64748b);
+      font-size: 0.75rem;
+    }
+
+    .export textarea {
+      width: 100%;
+      height: 220px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
+      border-radius: 8px;
+      background: var(--app-input, transparent);
+      color: var(--app-text, #0f172a);
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 0.7rem;
+    }
+
+    .panel {
+      overflow: hidden;
+      border: 1px solid var(--app-border, rgba(148, 163, 184, 0.5));
+      border-radius: 14px;
+      background: var(--app-panel, #ffffff);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--app-border, rgba(148, 163, 184, 0.35));
+    }
+
+    .panel-head h2 {
       margin: 0;
       font-size: 0.95rem;
     }
 
-    textarea {
-      width: 100%;
-      min-height: 220px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.04);
-      color: var(--text);
-      padding: 14px;
-      resize: vertical;
-      font-family: 'SFMono-Regular', Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.5;
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    @media (max-width: 980px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
+    .ghost.small {
+      min-height: 30px;
+      padding: 0 10px;
+      font-size: 0.75rem;
+    }
 
-      .topbar {
-        flex-direction: column;
-        align-items: stretch;
-      }
+    .panel-head span {
+      color: var(--app-muted, #64748b);
+      font-size: 0.75rem;
+    }
 
-      .toolbar {
-        justify-content: space-between;
-      }
+    .empty {
+      margin: 0;
+      padding: 24px 16px;
+      color: var(--app-muted, #64748b);
+      font-size: 0.85rem;
     }
   `
 }
 
-customElements.define('my-first-tokens', TokenSyncApp)
+customElements.define('my-first-tokens', PebbleTokenManager)
 
 declare global {
   interface HTMLElementTagNameMap {
-    'my-first-tokens': TokenSyncApp
+    'my-first-tokens': PebbleTokenManager
   }
 }

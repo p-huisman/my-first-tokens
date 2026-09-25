@@ -1,0 +1,86 @@
+{
+  "tab-list": {
+    "border-color": {
+      "$type": "color",
+      "$value": "{semantic.color.border.default}"
+    },
+    "background": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0, 0, 0],
+        "alpha": 0
+      }
+    }
+  },
+  "tab": {
+    "font-size": {
+      "$type": "dimension",
+      "$value": "{primitives.typography.fontSize.sm}"
+    },
+    "font-weight": {
+      "$type": "number",
+      "$value": 500
+    },
+    "color": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "hover-color": {
+      "$type": "color",
+      "$value": "{semantic.color.brand.primary}"
+    },
+    "active-color": {
+      "$type": "color",
+      "$value": "{semantic.color.brand.primaryActive}"
+    },
+    "active-border-color": {
+      "$type": "color",
+      "$value": "{semantic.color.brand.primaryActive}"
+    },
+    "focus-color": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.focus}"
+    },
+    "padding-block": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingBlock.sm}"
+    },
+    "padding-inline": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingInline.md}"
+    }
+  },
+  "tab-panel": {
+    "background": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0, 0, 0],
+        "alpha": 0
+      }
+    },
+    "padding-block": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      }
+    },
+    "padding-inline": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingInline.md}"
+    },
+    "border-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      }
+    },
+    "border-color": {
+      "$type": "color",
+      "$value": "{semantic.color.border.default}"
+    }
+  }
+}

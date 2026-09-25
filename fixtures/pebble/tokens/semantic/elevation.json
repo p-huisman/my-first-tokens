@@ -1,0 +1,25 @@
+{
+  "semantic": {
+    "elevation": {
+      "shadow": {
+        "low": { "$type": "shadow", "$value": "{primitives.elevation.shadow.xs}", "$description": "Subtle elevation" },
+        "medium": { "$type": "shadow", "$value": "{primitives.elevation.shadow.md}", "$description": "Default elevation" },
+        "high": { "$type": "shadow", "$value": "{primitives.elevation.shadow.lg}", "$description": "Prominent elevation" },
+        "highest": { "$type": "shadow", "$value": "{primitives.elevation.shadow.xl}", "$description": "Maximum elevation" },
+        "overlay": { "$type": "shadow", "$value": "{primitives.elevation.shadow.2xl}", "$description": "Overlay elevation (modals, dropdowns)" },
+        "tooltip": { "$type": "shadow", "$value": "{primitives.elevation.shadow.tooltip}", "$description": "Tooltip elevation" }
+      },
+      "zIndex": {
+        "base": { "$type": "number", "$value": "{primitives.elevation.zIndex.base}" },
+        "dropdown": { "$type": "number", "$value": "{primitives.elevation.zIndex.dropdown}" },
+        "sticky": { "$type": "number", "$value": "{primitives.elevation.zIndex.sticky}" },
+        "fixed": { "$type": "number", "$value": "{primitives.elevation.zIndex.fixed}" },
+        "overlay": { "$type": "number", "$value": "{primitives.elevation.zIndex.overlay}" },
+        "modal": { "$type": "number", "$value": "{primitives.elevation.zIndex.modal}" },
+        "popover": { "$type": "number", "$value": "{primitives.elevation.zIndex.popover}" },
+        "tooltip": { "$type": "number", "$value": "{primitives.elevation.zIndex.tooltip}" },
+        "toast": { "$type": "number", "$value": "{primitives.elevation.zIndex.toast}" }
+      }
+    }
+  }
+}

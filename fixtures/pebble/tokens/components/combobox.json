@@ -1,0 +1,206 @@
+{
+  "$schema": "../config.json",
+  "combobox": {
+    "gap": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.25,
+        "unit": "rem"
+      }
+    },
+    "iconSize": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1,
+        "unit": "rem"
+      }
+    },
+    "iconColor": {
+      "$type": "color",
+      "$value": "{semantic.color.text.secondary}"
+    },
+    "menuMinWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "rem"
+      }
+    },
+    "menuMaxWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "rem"
+      }
+    },
+    "inputMinWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 2,
+        "unit": "rem"
+      }
+    },
+    "tagGap": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.25,
+        "unit": "rem"
+      }
+    },
+    "tagBackground": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.active}"
+    },
+    "tagColor": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "tagBorderRadius": {
+      "$type": "dimension",
+      "$value": "{primitives.spacing.radius.sm}"
+    },
+    "tagFontSize": {
+      "$type": "dimension",
+      "$value": "{primitives.typography.fontSize.sm}"
+    },
+    "tagPaddingBlock": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingBlock.xs}"
+    },
+    "tagPaddingInline": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingInline.sm}"
+    },
+    "tagRemoveColorHover": {
+      "$type": "color",
+      "$value": "{semantic.color.status.error}"
+    },
+    "clearBackgroundHover": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.hover}"
+    },
+    "clearColorHover": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "clearBorderRadius": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.border.radius.md}",
+      "$description": "Border radius of the clear button"
+    },
+    "widthXs": {
+      "$type": "dimension",
+      "$value": {
+        "value": 4.5,
+        "unit": "rem"
+      }
+    },
+    "widthS": {
+      "$type": "dimension",
+      "$value": {
+        "value": 11,
+        "unit": "rem"
+      }
+    },
+    "widthM": {
+      "$type": "dimension",
+      "$value": {
+        "value": 17.5,
+        "unit": "rem"
+      }
+    },
+    "widthL": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "rem"
+      }
+    },
+    "widthXl": {
+      "$type": "dimension",
+      "$value": {
+        "value": 30.5,
+        "unit": "rem"
+      }
+    },
+    "widthFull": {
+      "$type": "number",
+      "$value": 100,
+      "$description": "Width of the control when input-width is full"
+    }
+  },
+  "combobox-item": {
+    "gap": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.5,
+        "unit": "rem"
+      }
+    },
+    "padding": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.5,
+        "unit": "rem"
+      }
+    },
+    "borderRadius": {
+      "$type": "dimension",
+      "$value": "{primitives.spacing.radius.sm}"
+    },
+    "background": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0, 0, 0],
+        "alpha": 0
+      },
+      "$description": "Background of an option"
+    },
+    "backgroundHover": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.hover}"
+    },
+    "backgroundActive": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.active}"
+    },
+    "backgroundSelected": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0, 0, 0],
+        "alpha": 0
+      }
+    },
+    "color": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "colorDisabled": {
+      "$type": "color",
+      "$value": "{semantic.color.text.disabled}"
+    },
+    "fontSize": {
+      "$type": "number",
+      "$value": 0.9375,
+      "$description": "Font size of an option, relative to the field font size so it scales with the appearance"
+    },
+    "fontWeightSelected": {
+      "$type": "fontWeight",
+      "$value": "{primitives.typography.fontWeight.medium}",
+      "$description": "Font weight of a selected option"
+    },
+    "checkmarkColor": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.focus}"
+    },
+    "checkmarkSize": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1,
+        "unit": "rem"
+      }
+    }
+  }
+}

@@ -72,9 +72,8 @@ export const fromFigmaColor = ({ r, g, b, a }: FigmaColor): string => {
 const asGradient = (value: unknown): GradientValue | null =>
   isRecord(value) && Array.isArray(value.stops) && value.stops.length > 0 ? ({ ...value } as unknown as GradientValue) : null
 
-/** `northstar` + `light` + `sunset` → `northstar/light/primitives/gradient/sunset`. */
-export const gradientStyleName = (brandName: string, theme: string, key: string): string =>
-  `${brandName}/${theme}/${toVariableName({ section: 'primitives', group: 'gradient', key })}`
+/** `northstar` + `light` + `semantic/hero-bg` → `northstar/light/semantic/hero-bg`. */
+export const gradientStyleName = (brandName: string, theme: string, key: string): string => `${brandName}/${theme}/${key}`
 
 /** The style's description: the token it came from and how the editor renders it. */
 const describeGradientStyle = (name: string, gradient: GradientValue): string => {
@@ -327,6 +326,20 @@ const gradientColours = (plan: BrandPlan, themeName: string): GradientPaintConte
   },
   fromColor: fromFigmaColor,
 })
+
+/** Resolves a gradient alias so semantic and component tokens can also become paint styles. */
+const gradientValueOf = (plan: BrandPlan, themeName: string, value: unknown, depth = 0): GradientValue | null => {
+  if (depth > MAX_REFERENCE_DEPTH) return null
+  const gradient = asGradient(value)
+  if (gradient !== null) return gradient
+  if (typeof value !== 'string') return null
+
+  const reference = parseReference(value, plan.brand.id, themeName)
+  if (reference === null || reference.brandId !== undefined) return null
+  const theme = plan.brand.themes[reference.theme ?? themeName]
+  const target = theme === undefined ? undefined : lookupPath(theme, reference.path)
+  return target === undefined ? null : gradientValueOf(plan, reference.theme ?? themeName, target, depth + 1)
+}
 
 /** The paint a style holds, or nothing when it is not a gradient paint. */
 const firstGradientPaint = (style: FigmaStyleSnapshot): FigmaGradientPaintSnapshot | undefined => style.paints[0]
@@ -725,22 +738,14 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
       record(token, plan.brand.id, name, undefined, existing, values)
     }
 
-    // Gradients: one paint style per brand *and* theme, for the *primitive* group — a style
-    // cannot hold modes, and a semantic/component gradient expresses purpose, so it stays a
-    // variable (an alias to the primitive, or the token JSON when it is a literal).
+    // Gradients: one paint style per brand and theme. Figma variables carry the JSON/alias,
+    // while the paint style makes primitive, semantic and component gradients visible in Figma.
     const styleKeys = new Set<string>()
-    const namedGradients = [...plan.pending].filter(([, token]) => token.kind === 'gradient' && token.path.section !== 'primitives')
-    if (namedGradients.length > 0) {
-      warnings.push(
-        `${namedGradients.map(([name]) => `"${name}"`).join(', ')} in "${plan.brand.name}" ${namedGradients.length === 1 ? 'is a gradient on a semantic or component token' : 'are gradients on semantic or component tokens'}: they travel as STRING variables (an alias when they point at a gradient primitive), and only "primitives/gradient/*" gets a paint style.`,
-      )
-    }
-
     for (const [name, token] of plan.pending) {
-      if (token.kind !== 'gradient' || token.path.section !== 'primitives') continue
+      if (token.kind !== 'gradient') continue
 
       for (const [themeName, rawValue] of token.values) {
-        const gradient = asGradient(rawValue)
+        const gradient = gradientValueOf(plan, themeName, rawValue)
         if (gradient === null) continue
 
         const planned = gradientToPaint(gradient, gradientColours(plan, themeName))
@@ -749,9 +754,10 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
           continue
         }
 
-        const styleName = gradientStyleName(plan.brand.name, themeName, token.path.key)
-        const existing = findStyle(index, plan.brand.id, themeName, token.path.key, styleName)
-        styleKeys.add(`${themeName}|${token.path.key}`)
+        const styleToken = token.path.section === 'primitives' ? token.path.key : name
+        const styleName = gradientStyleName(plan.brand.name, themeName, name)
+        const existing = findStyle(index, plan.brand.id, themeName, styleToken, styleName)
+        styleKeys.add(`${themeName}|${styleToken}`)
         if (existing !== undefined && samePaint(firstGradientPaint(existing), planned.paint)) continue
 
         if (!explainedGradients) {
@@ -765,7 +771,7 @@ const diffAgainstSnapshot = (plans: BrandPlan[], context: DiffContext): SyncPlan
           brandId: plan.brand.id,
           theme: themeName,
           name: styleName,
-          token: token.path.key,
+          token: styleToken,
           paint: planned.paint,
           gradient,
           description: describeGradientStyle(name, gradient),
@@ -1152,11 +1158,11 @@ export const figmaToDtcg = (snapshot: FigmaSnapshot, options: FigmaToDtcgOptions
       continue
     }
 
-    const path: TokenPath = { section: 'primitives', group: 'gradient', key: style.token }
+    const path = style.token.includes('/') ? fromVariableName(style.token, 'STRING').path : { section: 'primitives', group: 'gradient', key: style.token }
     // A style that no longer matches what the last sync wrote was edited in Figma, and a
     // variable whose JSON differs from that payload was. Either way the style wins, and the
     // difference is reported rather than resolved silently.
-    const previous = theme.primitives?.gradient?.[style.token]
+    const previous = lookupPath(theme, toReferencePath(path))
     if (stored !== null && !samePaint(storedPaint, paint)) {
       warnings.push(
         `"${toVariableName(path)}" in "${brand.name}"/${style.theme} was edited in Figma: the paint style wins in the exported file, and the STRING variable still holds the previous value.`,

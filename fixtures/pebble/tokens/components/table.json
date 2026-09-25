@@ -1,0 +1,42 @@
+{
+  "table": {
+    "background": {
+      "$type": "color",
+      "$value": "{semantic.color.surface.default}"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{semantic.color.border.default}"
+    },
+    "header": {
+      "background": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.sunken}"
+      },
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}"
+      }
+    },
+    "row": {
+      "hover": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.hover}"
+      },
+      "selected": {
+        "background": {
+          "$type": "color",
+          "$value": "{semantic.color.interactive.focus}"
+        },
+        "color": {
+          "$type": "color",
+          "$value": "{semantic.color.text.inverse}"
+        }
+      }
+    },
+    "text": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    }
+  }
+}

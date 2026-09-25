@@ -1,0 +1,142 @@
+{
+  "radio": {
+    "size": {
+      "width": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1.25,
+          "unit": "rem"
+        }
+      },
+      "height": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1.25,
+          "unit": "rem"
+        }
+      }
+    },
+    "background": {
+      "default": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "alpha": 0
+        }
+      },
+      "checked": {
+        "$type": "color",
+        "$value": "{semantic.color.brand.primary}"
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.hover}"
+      },
+      "disabled": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.disabled}"
+      }
+    },
+    "border": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.border.default}"
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{semantic.color.border.strong}"
+      },
+      "checked": {
+        "$type": "color",
+        "$value": "{semantic.color.brand.primary}"
+      },
+      "focus": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.focus}"
+      }
+    },
+    "borderWidth": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.border.width.thin}"
+    },
+    "borderRadius": {
+      "$type": "number",
+      "$value": 50
+    },
+    "dot": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.text.inverse}"
+      }
+    },
+    "label": {
+      "gap": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.gap.sm}"
+      },
+      "fontSize": {
+        "$type": "dimension",
+        "$value": "{primitives.typography.fontSize.base}"
+      },
+      "fontFamily": {
+        "$type": "fontFamily",
+        "$value": "{primitives.typography.fontFamily.sans}"
+      },
+      "fontWeight": {
+        "$type": "fontWeight",
+        "$value": "{primitives.typography.fontWeight.regular}"
+      },
+      "lineHeight": {
+        "$type": "number",
+        "$value": "{primitives.typography.lineHeight.normal}"
+      },
+      "color": {
+        "default": {
+          "$type": "color",
+          "$value": "{semantic.color.text.primary}"
+        },
+        "disabled": {
+          "$type": "color",
+          "$value": "{semantic.color.text.disabled}"
+        }
+      }
+    },
+    "focusRing": {
+      "width": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "offset": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.focus}"
+      }
+    },
+    "transition": {
+      "duration": {
+        "$type": "duration",
+        "$value": "{primitives.motion.duration.fast}"
+      },
+      "easing": {
+        "$type": "cubicBezier",
+        "$value": "{primitives.motion.easing.easeInOut}"
+      }
+    },
+    "disabled": {
+      "opacity": {
+        "$type": "number",
+        "$value": 0.9
+      }
+    }
+  }
+}

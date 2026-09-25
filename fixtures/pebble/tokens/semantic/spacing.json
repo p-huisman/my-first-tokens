@@ -1,0 +1,162 @@
+{
+  "semantic": {
+    "spacing": {
+      "component": {
+        "paddingInline": {
+          "xs": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.2}"
+          },
+          "sm": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.3}"
+          },
+          "md": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.4}"
+          },
+          "lg": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.6}"
+          },
+          "xl": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.8}"
+          }
+        },
+        "paddingBlock": {
+          "xs": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.1}"
+          },
+          "sm": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.2}"
+          },
+          "md": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.3}"
+          },
+          "lg": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.4}"
+          },
+          "xl": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.6}"
+          }
+        },
+        "gap": {
+          "xs": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.1}"
+          },
+          "sm": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.2}"
+          },
+          "md": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.3}"
+          },
+          "lg": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.4}"
+          },
+          "xl": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.6}"
+          }
+        },
+        "padding": {
+          "xs": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.1}"
+          },
+          "sm": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.2}"
+          },
+          "md": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.3}"
+          },
+          "lg": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.4}"
+          },
+          "xl": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.6}"
+          }
+        }
+      },
+      "layout": {
+        "gutter": {
+          "$type": "dimension",
+          "$value": "{primitives.spacing.scale.4}",
+          "$description": "Container gutter"
+        },
+        "containerMaxWidth": {
+          "$type": "dimension",
+          "$value": {
+            "value": 1280,
+            "unit": "px"
+          }
+        },
+        "sectionSpacing": {
+          "sm": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.12}"
+          },
+          "md": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.16}"
+          },
+          "lg": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.scale.24}"
+          }
+        }
+      },
+      "border": {
+        "radius": {
+          "sm": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.radius.sm}"
+          },
+          "md": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.radius.base}"
+          },
+          "lg": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.radius.lg}"
+          },
+          "xl": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.radius.xl}"
+          },
+          "full": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.radius.full}"
+          }
+        },
+        "width": {
+          "thin": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.borderWidth.1}"
+          },
+          "medium": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.borderWidth.2}"
+          },
+          "thick": {
+            "$type": "dimension",
+            "$value": "{primitives.spacing.borderWidth.4}"
+          }
+        }
+      }
+    }
+  }
+}

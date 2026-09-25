@@ -1,0 +1,275 @@
+{
+  "$description": "Dark theme with dark backgrounds and light text",
+  "semantic": {
+    "color": {
+      "background": {
+        "primary": {
+          "$value": "{primitives.color.neutral.950}"
+        },
+        "secondary": {
+          "$value": "{primitives.color.neutral.900}"
+        },
+        "tertiary": {
+          "$value": "{primitives.color.neutral.800}"
+        },
+        "inverse": {
+          "$value": "{primitives.color.neutral.50}"
+        }
+      },
+      "surface": {
+        "default": {
+          "$value": "{primitives.color.neutral.900}"
+        },
+        "raised": {
+          "$value": "{primitives.color.neutral.800}"
+        },
+        "overlay": {
+          "$value": "{primitives.color.neutral.900}"
+        },
+        "sunken": {
+          "$value": "{primitives.color.neutral.950}"
+        },
+        "accent": {
+          "$value": "{primitives.color.blue.950}"
+        },
+        "accentHover": {
+          "$value": "{primitives.color.blue.900}"
+        }
+      },
+      "border": {
+        "default": {
+          "$value": "{primitives.color.neutral.700}"
+        },
+        "subtle": {
+          "$value": "{primitives.color.neutral.800}"
+        },
+        "strong": {
+          "$value": "{primitives.color.neutral.600}"
+        },
+        "disabled": {
+          "$value": "{primitives.color.neutral.800}"
+        },
+        "inverse": {
+          "$value": "{primitives.color.neutral.300}"
+        }
+      },
+      "text": {
+        "primary": {
+          "$value": "{primitives.color.neutral.50}"
+        },
+        "secondary": {
+          "$value": "{primitives.color.neutral.300}"
+        },
+        "tertiary": {
+          "$value": "{primitives.color.neutral.400}"
+        },
+        "disabled": {
+          "$value": "{primitives.color.neutral.600}"
+        },
+        "inverse": {
+          "$value": "{primitives.color.neutral.900}"
+        },
+        "link": {
+          "$value": "{primitives.color.blue.400}"
+        },
+        "linkHover": {
+          "$value": "{primitives.color.blue.300}"
+        }
+      },
+      "interactive": {
+        "default": {
+          "$value": "{primitives.color.neutral.900}"
+        },
+        "hover": {
+          "$value": "{primitives.color.neutral.800}"
+        },
+        "active": {
+          "$value": "{primitives.color.neutral.700}"
+        },
+        "disabled": {
+          "$value": "{primitives.color.neutral.950}"
+        },
+        "focus": {
+          "$value": "{primitives.color.blue.500}"
+        }
+      },
+      "brand": {
+        "primary": {
+          "$value": "{primitives.color.blue.700}"
+        },
+        "primaryHover": {
+          "$value": "{primitives.color.blue.600}"
+        },
+        "primaryActive": {
+          "$value": "{primitives.color.blue.800}"
+        },
+        "primarySubtle": {
+          "$value": "{primitives.color.blue.950}"
+        }
+      },
+      "status": {
+        "success": {
+          "$value": "{primitives.color.green.500}"
+        },
+        "successText": {
+          "$value": "{primitives.color.green.400}"
+        },
+        "successSubtle": {
+          "$value": "{primitives.color.green.950}"
+        },
+        "warning": {
+          "$value": "{primitives.color.yellow.400}"
+        },
+        "warningText": {
+          "$value": "{primitives.color.yellow.300}"
+        },
+        "warningSubtle": {
+          "$value": "{primitives.color.yellow.950}"
+        },
+        "error": {
+          "$value": "{primitives.color.red.500}"
+        },
+        "errorText": {
+          "$value": "{primitives.color.red.400}"
+        },
+        "errorSubtle": {
+          "$value": "{primitives.color.red.950}"
+        },
+        "info": {
+          "$value": "{primitives.color.blue.400}"
+        },
+        "infoText": {
+          "$value": "{primitives.color.blue.300}"
+        },
+        "infoSubtle": {
+          "$value": "{primitives.color.blue.950}"
+        }
+      }
+    }
+  },
+  "elevation": {
+    "shadow": {
+      "low": {
+        "$type": "shadow",
+        "$value": {
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 1,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 3,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          },
+          "color": "{primitives.color.alpha.black.40}"
+        }
+      },
+      "medium": {
+        "$type": "shadow",
+        "$value": {
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 4,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 8,
+            "unit": "px"
+          },
+          "spread": {
+            "value": -1,
+            "unit": "px"
+          },
+          "color": "{primitives.color.alpha.black.50}"
+        }
+      },
+      "high": {
+        "$type": "shadow",
+        "$value": {
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 10,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 20,
+            "unit": "px"
+          },
+          "spread": {
+            "value": -3,
+            "unit": "px"
+          },
+          "color": "{primitives.color.alpha.black.60}"
+        }
+      },
+      "highest": {
+        "$type": "shadow",
+        "$value": {
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 20,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 30,
+            "unit": "px"
+          },
+          "spread": {
+            "value": -5,
+            "unit": "px"
+          },
+          "color": "{primitives.color.alpha.black.70}"
+        }
+      },
+      "overlay": {
+        "$type": "shadow",
+        "$value": {
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 25,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 60,
+            "unit": "px"
+          },
+          "spread": {
+            "value": -12,
+            "unit": "px"
+          },
+          "color": "{primitives.color.alpha.black.80}"
+        }
+      }
+    }
+  },
+  "tab": {
+    "hover-color": {
+      "$value": "{primitives.color.blue.400}"
+    },
+    "active-color": {
+      "$value": "{primitives.color.blue.300}"
+    },
+    "active-border-color": {
+      "$value": "{primitives.color.blue.300}"
+    }
+  }
+}

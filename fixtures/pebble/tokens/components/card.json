@@ -1,0 +1,29 @@
+{
+  "card": {
+    "background": { "$type": "color", "$value": "{semantic.color.surface.default}" },
+    "border": {
+      "color": { "$type": "color", "$value": "{semantic.color.border.default}" },
+      "width": { "$type": "dimension", "$value": "{semantic.spacing.border.width.thin}" },
+      "radius": { "$type": "dimension", "$value": "{semantic.spacing.border.radius.lg}" }
+    },
+    "padding": {
+      "sm": { "$type": "dimension", "$value": "{primitives.spacing.scale.4}" },
+      "md": { "$type": "dimension", "$value": "{primitives.spacing.scale.6}" },
+      "lg": { "$type": "dimension", "$value": "{primitives.spacing.scale.8}" }
+    },
+    "elevation": {
+      "default": { "$type": "shadow", "$value": "{semantic.elevation.shadow.low}" },
+      "hover": { "$type": "shadow", "$value": "{semantic.elevation.shadow.medium}" },
+      "raised": { "$type": "shadow", "$value": "{semantic.elevation.shadow.high}" }
+    },
+    "interactive": {
+      "background": {
+        "hover": { "$type": "color", "$value": "{semantic.color.surface.raised}" }
+      },
+      "transition": {
+        "duration": { "$type": "duration", "$value": "{primitives.motion.duration.normal}" },
+        "easing": { "$type": "cubicBezier", "$value": "{primitives.motion.easing.easeOut}" }
+      }
+    }
+  }
+}

@@ -15,6 +15,9 @@ import type {
   TokenValue,
 } from './types.js'
 
+const MAX_REFERENCE_DEPTH = 32
+const DIMENSION_PATTERN = /^-?(?:\d+\.?\d*|\.\d+)(px|rem|em|%)$/
+
 /** Well-known semantic tokens and the reference the light theme is expected to carry. */
 const SEMANTIC_DEFAULTS: Record<string, string> = {
   'surface-page-default': 'primitives.color.gray50',
@@ -176,15 +179,34 @@ const toGradientColor = (value: string, brandId: string, themeName: string): str
   return toDtcgValue(reference, brandId, themeName) as string | DtcgColorValue
 }
 
+const lookupThemePath = (theme: ThemeTokens, path: string): unknown => {
+  let current: unknown = theme
+  for (const part of path.split('.')) {
+    if (!isRecord(current)) return undefined
+    current = current[part]
+  }
+  return current
+}
+
 /**
- * The `$type` a token value implies. Absolute references
- * (`{brands.<id>.<theme>.primitives.spatial.spacing-2}`, which is what the Figma
- * plugin writes) keep their primitive group after the brand prefix, so the group is
- * looked up anywhere in the path instead of only at the start.
+ * The `$type` a token value implies. References are followed through semantic and
+ * component tokens, so a component alias of a gradient primitive remains a gradient
+ * in the generated DTCG file.
  */
-const aliasType = (value: TokenValue): 'color' | 'dimension' | 'gradient' => {
+const aliasType = (value: TokenValue, theme: ThemeTokens, depth = 0): 'color' | 'dimension' | 'gradient' => {
+  if (depth > MAX_REFERENCE_DEPTH) return 'color'
+
+  if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+    const reference = value.slice(1, -1)
+    if (!reference.startsWith('brands.')) {
+      const target = lookupThemePath(theme, reference)
+      if (target !== undefined) return aliasType(target as TokenValue, theme, depth + 1)
+    }
+  }
+
   // A gradient is a gradient wherever it lives: a semantic or component token can carry one too.
   if (isRecord(value) && Array.isArray(value.stops)) return 'gradient'
+  if (typeof value === 'string' && DIMENSION_PATTERN.test(value.trim())) return 'dimension'
   if (typeof value !== 'string' || !value.startsWith('{')) return 'color'
 
   const reference = value.slice(1, -1)
@@ -243,7 +265,7 @@ export const toDesignTokensFormat = (brands: Brand[]): DtcgTokenFile => ({
                   sectionName,
                   Object.fromEntries(
                     Object.entries(values ?? {}).map(([key, value]): [string, DtcgToken] => {
-                      const type = aliasType(value)
+                      const type = aliasType(value, theme)
                       const extensions = gradientExtensions(value, type)
                       return [
                         key,

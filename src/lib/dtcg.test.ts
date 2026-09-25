@@ -130,6 +130,39 @@ describe('toDesignTokensFormat', () => {
     expect(token?.$extensions).toEqual({ 'com.figma': { type: 'LINEAR', angle: 45 } })
   })
 
+  it('keeps a component alias of a semantic gradient typed as a gradient', () => {
+    const brands: Brand[] = [
+      {
+        id: 'demo',
+        name: 'Demo',
+        themes: {
+          light: {
+            primitives: {
+              gradient: {
+                sunset: {
+                  stops: [
+                    { color: '#D4BF8E', position: 0 },
+                    { color: '#FFFFFF', position: 1 },
+                  ],
+                },
+              },
+            },
+            semantic: { 'action-brand-secondary': '{primitives.gradient.sunset}' },
+            component: { buttonPrimaryBg: '{semantic.action-brand-secondary}' },
+          },
+        },
+      },
+    ]
+
+    const exported = toDesignTokensFormat(brands).brands.demo as {
+      light: { component: { buttonPrimaryBg: { $value: unknown; $type: string } } }
+    }
+    expect(exported.light.component.buttonPrimaryBg).toEqual({
+      $value: '{brands.demo.light.semantic.action-brand-secondary}',
+      $type: 'gradient',
+    })
+  })
+
   it('exports DTCG colour objects and absolute references', () => {
     const brands: Brand[] = [
       {

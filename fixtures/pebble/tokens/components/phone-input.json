@@ -1,0 +1,97 @@
+{
+  "$schema": "../config.json",
+  "phone-input": {
+    "container": {
+      "width": {
+        "$type": "dimension",
+        "$value": {
+          "value": 280,
+          "unit": "px"
+        },
+        "$description": "Default width of the phone input container"
+      }
+    },
+    "dial-code": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.text.secondary}",
+        "$description": "Text color for the dial code display"
+      }
+    },
+    "country-name": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}",
+        "$description": "Text color for the country name"
+      }
+    },
+    "appearance": {
+      "sm": {
+        "padding-inline": {
+          "$type": "dimension",
+          "$value": {
+            "value": 56,
+            "unit": "px"
+          },
+          "$description": "Left padding for small size to accommodate flag button"
+        }
+      },
+      "md": {
+        "padding-inline": {
+          "$type": "dimension",
+          "$value": {
+            "value": 56,
+            "unit": "px"
+          },
+          "$description": "Left padding for medium size to accommodate flag button"
+        }
+      },
+      "lg": {
+        "padding-inline": {
+          "$type": "dimension",
+          "$value": {
+            "value": 56,
+            "unit": "px"
+          },
+          "$description": "Left padding for large size to accommodate flag button"
+        }
+      }
+    }
+  },
+  "phone-input-flag": {
+    "width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 48,
+        "unit": "px"
+      },
+      "$description": "Width of the flag button area"
+    },
+    "border": {
+      "right": {
+        "width": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.border.width.thin}"
+        },
+        "color": {
+          "$type": "color",
+          "$value": "{semantic.color.border.subtle}"
+        }
+      }
+    },
+    "background": {
+      "default": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "alpha": 0
+        }
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.hover}"
+      }
+    }
+  }
+}

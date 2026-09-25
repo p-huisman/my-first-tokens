@@ -1,0 +1,81 @@
+{
+  "primitives": {
+    "motion": {
+      "duration": {
+        "instant": {
+          "$type": "duration",
+          "$value": {
+            "value": 0,
+            "unit": "ms"
+          }
+        },
+        "fast": {
+          "$type": "duration",
+          "$value": {
+            "value": 100,
+            "unit": "ms"
+          }
+        },
+        "normal": {
+          "$type": "duration",
+          "$value": {
+            "value": 200,
+            "unit": "ms"
+          }
+        },
+        "slow": {
+          "$type": "duration",
+          "$value": {
+            "value": 300,
+            "unit": "ms"
+          }
+        },
+        "slower": {
+          "$type": "duration",
+          "$value": {
+            "value": 400,
+            "unit": "ms"
+          }
+        },
+        "slowest": {
+          "$type": "duration",
+          "$value": {
+            "value": 500,
+            "unit": "ms"
+          }
+        }
+      },
+      "easing": {
+        "linear": {
+          "$type": "cubicBezier",
+          "$value": [0, 0, 1, 1]
+        },
+        "easeIn": {
+          "$type": "cubicBezier",
+          "$value": [0.4, 0, 1, 1],
+          "$description": "Accelerating"
+        },
+        "easeOut": {
+          "$type": "cubicBezier",
+          "$value": [0, 0, 0.2, 1],
+          "$description": "Decelerating"
+        },
+        "easeInOut": {
+          "$type": "cubicBezier",
+          "$value": [0.4, 0, 0.2, 1],
+          "$description": "Smooth"
+        },
+        "bounce": {
+          "$type": "cubicBezier",
+          "$value": [0.68, -0.55, 0.265, 1.55],
+          "$description": "Bouncy effect"
+        },
+        "snappy": {
+          "$type": "cubicBezier",
+          "$value": [0.25, 0.46, 0.45, 0.94],
+          "$description": "Quick and responsive"
+        }
+      }
+    }
+  }
+}

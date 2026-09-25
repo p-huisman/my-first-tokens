@@ -1,0 +1,67 @@
+{
+  "tooltip": {
+    "background": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      }
+    },
+    "color": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}"
+      }
+    },
+    "borderRadius": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.border.radius.md}"
+    },
+    "borderWidth": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.border.width.thin}"
+    },
+    "borderColor": {
+      "$type": "color",
+      "$value": "{semantic.color.tooltip.border}"
+    },
+    "paddingInline": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingInline.sm}"
+    },
+    "paddingBlock": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.paddingBlock.xs}"
+    },
+    "gap": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.gap.xs}"
+    },
+    "boxShadow": {
+      "$type": "shadow",
+      "$value": "{semantic.elevation.shadow.tooltip}"
+    },
+    "zIndex": {
+      "$type": "number",
+      "$value": "{semantic.elevation.zIndex.tooltip}"
+    },
+    "maxWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 320,
+        "unit": "px"
+      }
+    },
+    "fontSize": {
+      "$type": "dimension",
+      "$value": "{primitives.typography.fontSize.sm}"
+    },
+    "lineHeight": {
+      "$type": "number",
+      "$value": "{primitives.typography.lineHeight.tight}"
+    },
+    "letterSpacing": {
+      "$type": "number",
+      "$value": "{primitives.typography.letterSpacing.tight}"
+    }
+  }
+}

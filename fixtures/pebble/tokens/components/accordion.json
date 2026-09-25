@@ -1,0 +1,86 @@
+{
+  "accordion": {
+    "border": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.border.default}"
+      },
+      "radius": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.radius.md}"
+      }
+    }
+  },
+  "accordion-item": {
+    "border": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.border.subtle}"
+      }
+    },
+    "header": {
+      "font-size": {
+        "$type": "dimension",
+        "$value": "{primitives.typography.fontSize.base}"
+      },
+      "font-weight": {
+        "$type": "number",
+        "$value": 600
+      },
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}"
+      },
+      "hover-background": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.hover}"
+      },
+      "expanded-background": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.sunken}"
+      },
+      "focus-outline-color": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.focus}"
+      },
+      "padding-block": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingBlock.md}"
+      },
+      "padding-inline": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingInline.md}"
+      }
+    },
+    "panel": {
+      "background": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      },
+      "max-height": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1000,
+          "unit": "px"
+        }
+      },
+      "padding-block": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingBlock.md}"
+      },
+      "padding-inline": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingInline.md}"
+      }
+    },
+    "icon": {
+      "size": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1,
+          "unit": "rem"
+        }
+      }
+    }
+  }
+}

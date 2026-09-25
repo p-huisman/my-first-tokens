@@ -1,4 +1,5 @@
 import { isRecord } from './guards.js'
+import { oklchToRgb, parseOklch } from './pebble/oklab.js'
 
 /** A colour in the app's canonical working space: 8-bit sRGB channels plus 0-1 alpha. */
 export interface RgbColor {
@@ -46,9 +47,10 @@ const parseHexColor = (hex: string): RgbColor | null => {
 }
 
 /**
- * The single colour parser for the whole app. Accepts hex (3/4/6/8 digits) and
- * `rgb()`/`rgba()` with either commas or spaces. Returns `null` for anything it
- * does not understand so callers can decide whether to warn, keep or fall back.
+ * The single colour parser for the whole app. Accepts hex (3/4/6/8 digits), `rgb()`/`rgba()` with
+ * either commas or spaces, and `oklch()` — pebble's primitives are written in it, and a value that
+ * arrives from a file or a paste may be too. Returns `null` for anything it does not understand so
+ * callers can decide whether to warn, keep or fall back.
  */
 export const parseColor = (value: unknown): RgbColor | null => {
   if (typeof value !== 'string') return null
@@ -58,16 +60,25 @@ export const parseColor = (value: unknown): RgbColor | null => {
   if (hexMatch !== null) return parseHexColor(hexMatch[1] ?? '')
 
   const rgbMatch = RGB_PATTERN.exec(input)
-  if (rgbMatch === null) return null
+  if (rgbMatch !== null) {
+    const r = Number(rgbMatch[1])
+    const g = Number(rgbMatch[2])
+    const b = Number(rgbMatch[3])
+    const alphaGroup = rgbMatch[4]
+    const a = alphaGroup === undefined ? 1 : Number(alphaGroup)
+    if (!isRgbChannel(r) || !isRgbChannel(g) || !isRgbChannel(b) || !isAlpha(a)) return null
 
-  const r = Number(rgbMatch[1])
-  const g = Number(rgbMatch[2])
-  const b = Number(rgbMatch[3])
-  const alphaGroup = rgbMatch[4]
-  const a = alphaGroup === undefined ? 1 : Number(alphaGroup)
-  if (!isRgbChannel(r) || !isRgbChannel(g) || !isRgbChannel(b) || !isAlpha(a)) return null
+    return { r, g, b, a }
+  }
 
-  return { r, g, b, a }
+  // OKLCH is a different working space, so it is converted rather than reformatted. It lives in its
+  // own module because the token migration script runs the same maths under plain Node.
+  const oklch = parseOklch(input)
+  if (oklch === null) return null
+
+  const converted = oklchToRgb(oklch)
+
+  return { r: converted.r, g: converted.g, b: converted.b, a: converted.alpha }
 }
 
 export const isValidColorInput = (value: unknown): boolean => parseColor(value) !== null

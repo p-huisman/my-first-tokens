@@ -1,0 +1,100 @@
+{
+  "$description": "Light theme with bright backgrounds and dark text",
+  "semantic": {
+    "color": {
+      "background": {
+        "primary": {
+          "$value": "{primitives.color.neutral.0}"
+        },
+        "secondary": {
+          "$value": "{primitives.color.neutral.50}"
+        },
+        "tertiary": {
+          "$value": "{primitives.color.neutral.100}"
+        },
+        "inverse": {
+          "$value": "{primitives.color.neutral.900}"
+        }
+      },
+      "surface": {
+        "default": {
+          "$value": "{primitives.color.neutral.0}"
+        },
+        "raised": {
+          "$type": "color",
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.9529411764705882, 0.9607843137254902, 0.9725490196078431
+            ],
+            "alpha": 1,
+            "hex": "#F3F5F8"
+          }
+        },
+        "overlay": {
+          "$value": "{primitives.color.neutral.0}"
+        },
+        "sunken": {
+          "$value": "{primitives.color.neutral.50}"
+        }
+      },
+      "border": {
+        "default": {
+          "$value": "{primitives.color.neutral.200}"
+        },
+        "subtle": {
+          "$value": "{primitives.color.neutral.100}"
+        },
+        "strong": {
+          "$value": "{primitives.color.neutral.300}"
+        },
+        "disabled": {
+          "$value": "{primitives.color.neutral.300}"
+        },
+        "inverse": {
+          "$value": "{primitives.color.neutral.700}"
+        }
+      },
+      "text": {
+        "primary": {
+          "$value": "{primitives.color.neutral.900}"
+        },
+        "secondary": {
+          "$value": "{primitives.color.neutral.600}"
+        },
+        "tertiary": {
+          "$value": "{primitives.color.neutral.500}"
+        },
+        "disabled": {
+          "$value": "{primitives.color.neutral.700}"
+        },
+        "inverse": {
+          "$value": "{primitives.color.neutral.0}"
+        },
+        "link": {
+          "$value": "{primitives.color.blue.600}"
+        },
+        "linkHover": {
+          "$value": "{primitives.color.blue.700}"
+        }
+      },
+      "interactive": {
+        "default": {
+          "$value": "{primitives.color.neutral.0}"
+        },
+        "hover": {
+          "$value": "{primitives.color.neutral.50}"
+        },
+        "active": {
+          "$value": "{primitives.color.neutral.100}"
+        },
+        "disabled": {
+          "$value": "{primitives.color.neutral.50}"
+        },
+        "focus": {
+          "$value": "{primitives.color.blue.600}"
+        }
+      }
+    }
+  }
+}

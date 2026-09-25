@@ -1,10 +1,7 @@
 :root {
-  color-scheme: light;
   font-family: Inter, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  background: #f8fafc;
-  color: #0f172a;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -18,8 +15,14 @@ body {
   min-width: 320px;
 }
 
+/*
+ * The tokens the app edits are injected into this document, so the page itself is painted with
+ * pebble's own custom properties — and follows the theme selector.
+ */
 body {
   min-height: 100vh;
+  background: var(--semantic-color-background-primary, #f8fafc);
+  color: var(--semantic-color-text-primary, #0f172a);
 }
 
 my-first-tokens {

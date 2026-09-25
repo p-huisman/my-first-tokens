@@ -119,13 +119,15 @@ export class TknColorInput extends LitElement {
     }
   }
 
-  _closePicker() {
-    this.pickerOpen = false
-  }
-
   _handleInput(event: Event) {
     this.value = (event.target as HTMLInputElement).value
     this._emitValueChange()
+  }
+
+  /** Typing is only committed when the field settles (`change` fires on blur or Enter). */
+  _handleCommit(event: Event) {
+    this.value = (event.target as HTMLInputElement).value
+    this._emitValueCommit()
   }
 
   _handlePickerChange(event: CustomEvent<ColorValueChangeDetail>) {
@@ -133,10 +135,29 @@ export class TknColorInput extends LitElement {
     this._emitValueChange()
   }
 
+  _closePicker() {
+    if (!this.pickerOpen) return
+
+    this.pickerOpen = false
+    // A drag in the picker emits on every frame; the value is committed when the picker closes.
+    this._emitValueCommit()
+  }
+
   /** The outward contract: a typed `value-change` instead of a fake `InputEvent`. */
   _emitValueChange() {
     this.dispatchEvent(
       new CustomEvent<ColorValueChangeDetail>('value-change', {
+        detail: { value: this.value },
+        bubbles: true,
+        composed: true,
+      }),
+    )
+  }
+
+  /** `value-change` says "this is what I am showing"; `value-commit` says "write this down". */
+  _emitValueCommit() {
+    this.dispatchEvent(
+      new CustomEvent<ColorValueChangeDetail>('value-commit', {
         detail: { value: this.value },
         bubbles: true,
         composed: true,
@@ -171,6 +192,7 @@ export class TknColorInput extends LitElement {
             ?required=${this.required}
             aria-label=${this.label === '' ? 'Color value' : this.label}
             @input=${this._handleInput}
+            @change=${this._handleCommit}
           />
         </span>
       </div>

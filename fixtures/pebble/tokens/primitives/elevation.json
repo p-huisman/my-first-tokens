@@ -1,0 +1,226 @@
+{
+  "primitives": {
+    "elevation": {
+      "shadow": {
+        "xs": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 1,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 2,
+              "unit": "px"
+            },
+            "spread": {
+              "value": 0,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.10}"
+          },
+          "$description": "Minimal elevation for subtle lift"
+        },
+        "sm": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 1,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 3,
+              "unit": "px"
+            },
+            "spread": {
+              "value": 0,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.10}"
+          }
+        },
+        "md": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 4,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 6,
+              "unit": "px"
+            },
+            "spread": {
+              "value": -1,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.10}"
+          }
+        },
+        "lg": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 10,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 15,
+              "unit": "px"
+            },
+            "spread": {
+              "value": -3,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.10}"
+          }
+        },
+        "xl": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 20,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 25,
+              "unit": "px"
+            },
+            "spread": {
+              "value": -5,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.10}"
+          }
+        },
+        "2xl": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 25,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 50,
+              "unit": "px"
+            },
+            "spread": {
+              "value": -12,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.20}"
+          }
+        },
+        "inner": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 2,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 4,
+              "unit": "px"
+            },
+            "spread": {
+              "value": 0,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.5}",
+            "inset": true
+          },
+          "$description": "Inset shadow for pressed states"
+        },
+        "tooltip": {
+          "$type": "shadow",
+          "$value": {
+            "offsetX": {
+              "value": 0,
+              "unit": "px"
+            },
+            "offsetY": {
+              "value": 4,
+              "unit": "px"
+            },
+            "blur": {
+              "value": 12,
+              "unit": "px"
+            },
+            "spread": {
+              "value": 0,
+              "unit": "px"
+            },
+            "color": "{primitives.color.alpha.black.20}"
+          },
+          "$description": "Shadow for tooltips"
+        }
+      },
+      "zIndex": {
+        "base": {
+          "$type": "number",
+          "$value": 0
+        },
+        "dropdown": {
+          "$type": "number",
+          "$value": 1000
+        },
+        "sticky": {
+          "$type": "number",
+          "$value": 1100
+        },
+        "fixed": {
+          "$type": "number",
+          "$value": 1200
+        },
+        "overlay": {
+          "$type": "number",
+          "$value": 1300
+        },
+        "modal": {
+          "$type": "number",
+          "$value": 1400
+        },
+        "popover": {
+          "$type": "number",
+          "$value": 1500
+        },
+        "tooltip": {
+          "$type": "number",
+          "$value": 1600
+        },
+        "toast": {
+          "$type": "number",
+          "$value": 1700
+        }
+      }
+    }
+  }
+}

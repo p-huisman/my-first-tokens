@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { checkBrandModel } from './model.js'
 import { createDefaultBrands, NEW_BRAND_PALETTE, seedBrand, toBrandId, uniqueBrandId } from './seed.js'
 import { collectTokenIssues, resolveTokenValue } from './tokens.js'
 
@@ -56,10 +55,6 @@ describe('default brands', () => {
     const brands = createDefaultBrands()
     expect(brands).toHaveLength(3)
     expect(collectTokenIssues(brands)).toEqual([])
-  })
-
-  it('follow the model rules: one primitive set per brand, one set of token names', () => {
-    expect(checkBrandModel(createDefaultBrands())).toEqual([])
   })
 
   it('are cloned on every call', () => {

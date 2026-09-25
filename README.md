@@ -1,20 +1,113 @@
-# TokenSync
+# Pebble token manager
 
-TokenSync is a proof of concept for synchronizing design tokens between design tools and code.
+An editor for the design tokens pebble's web components are built on — the files in
+`pebble-web-components/tokens/`: `primitives/`, `semantic/`, `components/` and the sparse
+`themes/` overrides.
 
-It loads multi-brand, light/dark token sets from a DTCG-style JSON file, lets you edit primitives and
-re-point semantic/component aliases, previews the result, and exports both CSS custom properties and
-the design-tokens JSON. The same build is published to GitHub Pages, where `tokens.json` doubles as the
-sync source for the bundled Figma plugin.
+There is no multi-brand model here: one token set, light and dark as _overrides_ of it. The app
+lists the layers, shows what a theme resolves every token to, edits a value where pebble expects it
+(the layer, or the theme override that already re-points it), keeps notes on what pebble's build
+would get wrong, and regenerates `tokens.css` exactly as `tokens/build.mjs` writes it.
+
+## The app
+
+| Layer      | Tokens | Groups                                                      |
+| ---------- | ------ | ----------------------------------------------------------- |
+| primitives | 226    | color, spacing, typography, motion, elevation               |
+| semantic   | 161    | color, spacing, typography, elevation                       |
+| components | 512    | one group per component (accordion, calendar, button, … 21) |
+
+- **Theme** switches between the `config.json` themes. Like pebble, the default theme lands on
+  `:root` and the other one needs `data-theme="dark"` — which the app sets on `<html>`.
+- **Rows** show the value a theme is authored with (layer value, or the theme's override), a preview
+  for the value's shape (a swatch, a size bar, a shadow, a bezier curve, a gradient ramp), and an
+  editor chosen by `$type`: the colour picker with its alpha slider for colours, a number plus unit
+  for dimensions, durations and percentages, four inputs for a cubic-bezier, six fields for a shadow,
+  a ramp with an angle and stops for a gradient, and a text field for font stacks and strings. Typing
+  and dragging update the row live; the model is written on blur, Enter, or when the picker closes.
+  Colour tokens that _point at_ another token keep the reference field and the picker below it.
+- **+ Add token** writes a new token of any type pebble ships into the layer you are browsing: a group
+  you pick or a new one, with the full path and the custom property it will declare shown before you
+  commit it.
+- **+ Add scale** generates a whole colour palette: two colours and a list of steps, blended in
+  **OKLab** so the ramp is even to the eye rather than to sRGB, with every step editable afterwards.
+- **Remove** on a row asks first. A token nothing points at goes; a _mapped_ token is refused with its
+  referrers listed (by token and by the custom property they name, which catches pebble's
+  differently-spelled references), and a token only a theme overrides offers to take the override with
+  it. Any structural change can be taken back with **Undo**.
+- **Notes** list what the checks find: dangling references, cycles, paths a theme adds at a root the
+  layers never use, `var()`s nothing declares, and values a `$type` cannot hold. Against pebble's
+  tokens as they are today it reports nothing but 5 orphans — the `elevation.*` paths in `dark.json`;
+  the dangling references, the undefined custom properties, the type mismatches and the two-reference
+  shorthands it used to find are fixed in `tokens/`.
+- **tokens.css** in the sidebar is the generated file; the same text is injected into the page, so
+  the app is dressed in the tokens it edits.
+
+## Keeping in step with the pebble repo
+
+The app reads `public/pebble-tokens.json`, a snapshot of the pebble token files. The site is served
+from GitHub Pages and cannot read a sibling checkout, so the snapshot is committed and refreshed by
+a script. The app **fetches** it (`${import.meta.env.BASE_URL}pebble-tokens.json`) rather than
+importing it: an import from the public directory is exactly what Vite warns about, and fetching keeps
+the file out of the bundle. A failed fetch leaves an empty editor, which **Load snapshot** can fill.
+
+```sh
+npm run tokens:sync      # pebble tokens dir  ->  public/pebble-tokens.json
+npm run tokens:check     # fails when the snapshot and the pebble dir disagree
+npm run tokens:push      # snapshot -> pebble tokens dir (--dry-run, --check, --out <dir>)
+npm run tokens:fixture   # refresh fixtures/pebble (sources + the built tokens.css)
+npm run tokens:to-dtcg   # rewrite the pebble files in the 2025.10 value shapes (--check)
+npm run tokens:to-rgba   # the earlier oklch → hex migration; now a no-op
+```
+
+`PEBBLE_TOKENS_DIR` (default `../pebble/pebble-web-components/tokens`) and `PEBBLE_CSS` point the
+script at the checkout. `tokens:push` writes each token root back to the file it came from (`tab.json`
+keeps `tab-list`, `tab` and `tab-panel` together, `$schema` stays where it was) and formats the result
+with pebble's own prettier; it never deletes a file. The app's **Save snapshot** button downloads the
+same shape to drop in place by hand.
+
+### The 2025.10 value shapes
+
+pebble's files are written the way the DTCG Format and Color modules ask for them, and `tokens:to-dtcg`
+is the migration that got them there (it is idempotent, and `--check` reports instead of writing):
+
+- a colour is `{ colorSpace: "srgb", components: [r, g, b], alpha?, hex? }` — `hex` only when the
+  colour is opaque, because the module allows six digits and no alpha in hex;
+- a dimension or a duration is `{ value, unit }`, `px`/`rem` and `ms`/`s` only;
+- `fontSize`, `letterSpacing`, `lineHeight` and `percentage` became `dimension`/`number`, numbers are
+  JSON numbers, and a shadow's `color`/`offsetX`/`offsetY`/`blur`/`spread` are values of their own type.
+
+The app does not work with those objects: `src/lib/pebble/dtcg.ts` converts file → model on load and
+model → file on save, so the editor, the resolver and the renderer keep reading `#F0F6FF`, `0.25rem`
+and `200ms` — and pebble's `build.mjs` renders both shapes. Converting the values changed **no**
+generated declaration: every line of `tokens.css` is what it was before, except the deliberate ones
+listed in the commit.
+
+What the spec has no place for is a decision, not a conversion, so the migration keeps a table of them
+(`UNITLESS` and `DROPPED` in `scripts/sync-pebble-tokens.mjs`):
+
+- a `%`, `em` or `vw` length becomes a unitless **number**, and the unit moves into the component's own
+  CSS (`font-size: calc(var(--combobox-item-font-size) * 1em)`), which renders identically;
+- five tokens whose value is a CSS keyword no type can hold were dropped and the keyword left in the
+  component's CSS (`scrollbar-width: thin`, an icon's `currentColor`, `phone-input-flag.height`);
+- the five component shorthands (`accordion-item.*.padding`, `tab.padding`, `tab-panel.padding`,
+  `tab-panel.border`) became their parts, named after the slot they fill, like `calendar.border.width`
+  already was — which also fixed an inverted `padding` order: the inline value had been landing in the
+  block slot.
+
+`fixtures/pebble/` is a verbatim copy of the pebble token sources and their built `tokens.css`, and
+`src/lib/pebble/css.test.ts` asserts the app regenerates that file byte for byte — 906 declarations on
+`:root`, 911 on `:root[data-theme="dark"]`, 45 values that differ and the 5 dark-only ones.
 
 ## Publish the editor on GitHub Pages
 
 Once it is switched on, everything is served from this repository:
 
-| What       | Address                                                   |
-| ---------- | --------------------------------------------------------- |
-| The editor | `https://p-huisman.github.io/my-first-tokens/`            |
-| The tokens | `https://p-huisman.github.io/my-first-tokens/tokens.json` |
+| What                     | Address                                                          |
+| ------------------------ | ---------------------------------------------------------------- |
+| The editor               | `https://p-huisman.github.io/my-first-tokens/`                   |
+| The token snapshot       | `https://p-huisman.github.io/my-first-tokens/pebble-tokens.json` |
+| The plugin's legacy file | `https://p-huisman.github.io/my-first-tokens/tokens.json`        |
 
 ### Switch Pages on (do this once)
 
@@ -49,15 +142,21 @@ all keep running from `/`.
   the workflow can fail this way.
 - Blank page or no styling: open **Actions → Deploy to GitHub Pages** and check that the last run
   finished successfully.
-- The page loads but shows the built-in sample brands instead of your tokens: open
-  `https://p-huisman.github.io/my-first-tokens/tokens.json` and check whether it is the file you
-  expect (the editor falls back to its embedded defaults when the file cannot be loaded).
+- The page loads but shows an empty tree: the app boots from the snapshot bundled into the build, so
+  an empty tree means `public/pebble-tokens.json` is missing or malformed — run `npm run tokens:sync`
+  and commit the result.
 - Moved the repository or renamed it? Update the `VITE_BASE` value in `.github/workflows/deploy.yml`
   and the default URL in `figma-plugin/src/lib/github.ts` to match.
 
 ## Sync tokens with Figma
 
 `figma-plugin/` contains a Figma plugin that moves tokens in both directions:
+
+> **Status:** the plugin still speaks the app's older, brand-shaped file (`brands → theme →
+primitives/semantic/component`) and still reads `public/tokens.json`. Re-targeting it at the pebble
+> layers — one `pebble` collection, a mode per theme, variable names taken from the token paths — is
+> the next step; until it lands, the two halves of this repository use different shapes on purpose,
+> and the plugin's tests cover the shape it still speaks.
 
 - **Into Figma** — read the JSON and create or update variable collections, modes, variables and aliases.
 - **Out of Figma** — read the variables back out as the same JSON the editor reads, and optionally
@@ -274,10 +373,10 @@ whose `"structural"` group was written four times reads back as one shortened gr
 never contain the problem: `toJsonText` in `src/lib/json.ts` writes the pretty JSON and verifies the
 text before it reaches a download, the clipboard or a GitHub commit.
 
-Known limits: references pointing at _another_ brand or theme are preserved but cannot be resolved in
-the editor (they render as the fallback colour), scale interpolation is linear in sRGB, and
-`Generate between` overwrites all ten steps. Typography, motion, and elevation primitives are not
-included yet.
+Known limits: the tree lists the three layers, so a token that exists _only_ in a theme override (the
+five `elevation.*` orphans in `themes/dark.json`) is reported in the notes rather than listed as a row;
+adding and removing tokens is not in yet — a value is what this app changes today; and rename is not
+planned. The Figma plugin still speaks the older brand-shaped file (see its section above).
 
 ## Accessibility
 

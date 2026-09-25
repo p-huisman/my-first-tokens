@@ -1,0 +1,124 @@
+{
+  "dialog": {
+    "background": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      }
+    },
+    "color": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}"
+      }
+    },
+    "border": {
+      "width": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.width.thin}"
+      },
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.border.default}"
+      }
+    },
+    "borderRadius": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.border.radius.lg}"
+    },
+    "boxShadow": {
+      "$type": "shadow",
+      "$value": "{semantic.elevation.shadow.overlay}"
+    },
+    "maxWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 600,
+        "unit": "px"
+      }
+    },
+    "width": {
+      "$type": "number",
+      "$value": 90
+    },
+    "minWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 300,
+        "unit": "px"
+      }
+    },
+    "gap": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.gap.md}"
+    },
+    "backdrop": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.overlay.default}"
+      }
+    },
+    "header": {
+      "paddingInline": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingInline.lg}"
+      },
+      "paddingBlock": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingBlock.md}"
+      }
+    },
+    "title": {
+      "fontSize": {
+        "$type": "dimension",
+        "$value": "{primitives.typography.fontSize.xl}"
+      },
+      "fontWeight": {
+        "$type": "fontWeight",
+        "$value": "{primitives.typography.fontWeight.semibold}"
+      },
+      "lineHeight": {
+        "$type": "number",
+        "$value": "{primitives.typography.lineHeight.tight}"
+      }
+    },
+    "body": {
+      "paddingInline": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingInline.lg}"
+      },
+      "paddingBlock": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingBlock.lg}"
+      },
+      "fontSize": {
+        "$type": "dimension",
+        "$value": "{primitives.typography.fontSize.base}"
+      },
+      "lineHeight": {
+        "$type": "number",
+        "$value": "{primitives.typography.lineHeight.relaxed}"
+      }
+    },
+    "footer": {
+      "paddingInline": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingInline.lg}"
+      },
+      "paddingBlock": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingBlock.md}"
+      }
+    },
+    "closeButton": {
+      "padding": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.component.paddingBlock.xs}"
+      },
+      "hoverBackground": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.hover}"
+      }
+    }
+  }
+}

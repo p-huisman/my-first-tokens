@@ -1,0 +1,64 @@
+{
+  "$schema": "https://tr.designtokens.org/format/",
+  "name": "Base Component Library",
+  "version": "2.0.0",
+  "description": "White-label design token system",
+  "defaultTheme": "light",
+  "themes": [
+    {
+      "id": "light",
+      "name": "Light",
+      "path": "./themes/light.json"
+    },
+    {
+      "id": "dark",
+      "name": "Dark",
+      "path": "./themes/dark.json"
+    }
+  ],
+  "breakpoints": {
+    "sm": {
+      "$type": "dimension",
+      "$value": {
+        "value": 640,
+        "unit": "px"
+      },
+      "$description": "Small devices (mobile)"
+    },
+    "md": {
+      "$type": "dimension",
+      "$value": {
+        "value": 768,
+        "unit": "px"
+      },
+      "$description": "Medium devices (tablet)"
+    },
+    "lg": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1024,
+        "unit": "px"
+      },
+      "$description": "Large devices (desktop)"
+    },
+    "xl": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1280,
+        "unit": "px"
+      },
+      "$description": "Extra large devices"
+    }
+  },
+  "modes": {
+    "compact": {
+      "$description": "Reduced spacing for small screens"
+    },
+    "comfortable": {
+      "$description": "Default spacing"
+    },
+    "spacious": {
+      "$description": "Increased spacing for accessibility"
+    }
+  }
+}

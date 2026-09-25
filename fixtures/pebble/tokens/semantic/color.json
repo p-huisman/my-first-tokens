@@ -1,0 +1,249 @@
+{
+  "semantic": {
+    "color": {
+      "background": {
+        "primary": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.0}",
+          "$description": "Main background"
+        },
+        "secondary": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.50}",
+          "$description": "Subtle background"
+        },
+        "tertiary": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.100}",
+          "$description": "Slightly darker background"
+        },
+        "inverse": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.900}",
+          "$description": "Inverted background"
+        }
+      },
+      "surface": {
+        "default": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.0}",
+          "$description": "Default surface (cards, panels)"
+        },
+        "raised": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.0}",
+          "$description": "Elevated surface"
+        },
+        "overlay": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.0}",
+          "$description": "Overlay surface (modals, dialogs)"
+        },
+        "sunken": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.50}",
+          "$description": "Recessed surface"
+        },
+        "accent": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.100}",
+          "$description": "Accent surface (a selected range)"
+        },
+        "accentHover": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.200}",
+          "$description": "Accent surface, hovered"
+        }
+      },
+      "border": {
+        "default": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.200}",
+          "$description": "Default border"
+        },
+        "subtle": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.100}",
+          "$description": "Subtle border"
+        },
+        "strong": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.300}",
+          "$description": "Strong border"
+        },
+        "disabled": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.300}",
+          "$description": "Border of a disabled control"
+        },
+        "inverse": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.700}",
+          "$description": "Inverted border"
+        }
+      },
+      "text": {
+        "primary": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.900}",
+          "$description": "Primary text"
+        },
+        "secondary": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.600}",
+          "$description": "Secondary text"
+        },
+        "tertiary": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.500}",
+          "$description": "Tertiary text"
+        },
+        "disabled": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.900}",
+          "$description": "Disabled text"
+        },
+        "inverse": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.0}",
+          "$description": "Text on dark backgrounds"
+        },
+        "link": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.600}",
+          "$description": "Link text"
+        },
+        "linkHover": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.700}",
+          "$description": "Link hover state"
+        }
+      },
+      "brand": {
+        "primary": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.600}",
+          "$description": "Primary brand color"
+        },
+        "primaryHover": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.700}"
+        },
+        "primaryActive": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.800}"
+        },
+        "primarySubtle": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.50}"
+        },
+        "secondary": {
+          "$type": "color",
+          "$value": "{primitives.color.purple.600}",
+          "$description": "Secondary brand color"
+        },
+        "secondaryHover": {
+          "$type": "color",
+          "$value": "{primitives.color.purple.700}"
+        },
+        "secondaryActive": {
+          "$type": "color",
+          "$value": "{primitives.color.purple.800}"
+        }
+      },
+      "status": {
+        "success": {
+          "$type": "color",
+          "$value": "{primitives.color.green.600}"
+        },
+        "successSubtle": {
+          "$type": "color",
+          "$value": "{primitives.color.green.50}"
+        },
+        "successText": {
+          "$type": "color",
+          "$value": "{primitives.color.green.800}"
+        },
+        "warning": {
+          "$type": "color",
+          "$value": "{primitives.color.yellow.500}"
+        },
+        "warningSubtle": {
+          "$type": "color",
+          "$value": "{primitives.color.yellow.50}"
+        },
+        "warningText": {
+          "$type": "color",
+          "$value": "{primitives.color.yellow.900}"
+        },
+        "error": {
+          "$type": "color",
+          "$value": "{primitives.color.red.600}"
+        },
+        "errorSubtle": {
+          "$type": "color",
+          "$value": "{primitives.color.red.50}"
+        },
+        "errorText": {
+          "$type": "color",
+          "$value": "{primitives.color.red.800}"
+        },
+        "info": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.500}"
+        },
+        "infoSubtle": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.50}"
+        },
+        "infoText": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.800}"
+        }
+      },
+      "interactive": {
+        "default": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.0}"
+        },
+        "hover": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.50}"
+        },
+        "active": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.100}"
+        },
+        "disabled": {
+          "$type": "color",
+          "$value": "{primitives.color.neutral.200}"
+        },
+        "focus": {
+          "$type": "color",
+          "$value": "{primitives.color.blue.900}"
+        }
+      },
+      "overlay": {
+        "default": {
+          "$type": "color",
+          "$value": "{primitives.color.alpha.black.50}"
+        },
+        "subtle": {
+          "$type": "color",
+          "$value": "{primitives.color.alpha.black.30}"
+        },
+        "strong": {
+          "$type": "color",
+          "$value": "{primitives.color.alpha.black.70}"
+        }
+      },
+      "tooltip": {
+        "border": {
+          "$type": "color",
+          "$value": "{primitives.color.alpha.black.5}",
+          "$description": "Border that precedes tooltip shadow"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "select": {
+    "border": {
+      "radius": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.radius.md}"
+      },
+      "width": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.width.thin}"
+      },
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.border.default}"
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{semantic.color.border.strong}"
+      },
+      "focus": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.focus}"
+      },
+      "valid": {
+        "$type": "color",
+        "$value": "{semantic.color.status.success}"
+      },
+      "valid-focus": {
+        "$type": "color",
+        "$value": "{semantic.color.status.success}"
+      },
+      "invalid": {
+        "$type": "color",
+        "$value": "{semantic.color.status.error}"
+      },
+      "invalid-focus": {
+        "$type": "color",
+        "$value": "{semantic.color.status.error}"
+      },
+      "disabled": {
+        "$type": "color",
+        "$value": "{semantic.color.border.disabled}"
+      },
+      "readonly": {
+        "$type": "color",
+        "$value": "{semantic.color.border.subtle}"
+      }
+    },
+    "background": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      },
+      "hover": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      },
+      "focus": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      },
+      "disabled": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.disabled}"
+      },
+      "readonly": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.sunken}"
+      }
+    },
+    "text": {
+      "default": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}"
+      },
+      "disabled": {
+        "$type": "color",
+        "$value": "{semantic.color.text.disabled}"
+      },
+      "readonly": {
+        "$type": "color",
+        "$value": "{semantic.color.text.primary}"
+      }
+    },
+    "placeholder": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.text.tertiary}"
+      }
+    },
+    "focus-ring": {
+      "color": {
+        "$type": "color",
+        "$value": "{semantic.color.interactive.focus}"
+      },
+      "width": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "offset": {
+        "$type": "dimension",
+        "$value": {
+          "value": 0,
+          "unit": "px"
+        }
+      }
+    },
+    "transition": {
+      "duration": {
+        "$type": "duration",
+        "$value": "{primitives.motion.duration.fast}"
+      },
+      "easing": {
+        "$type": "cubicBezier",
+        "$value": "{primitives.motion.easing.easeInOut}"
+      }
+    },
+    "appearance": {
+      "sm": {
+        "font-size": {
+          "$type": "dimension",
+          "$value": "{primitives.typography.fontSize.sm}"
+        },
+        "min-height": {
+          "$type": "dimension",
+          "$value": {
+            "value": 2,
+            "unit": "rem"
+          }
+        },
+        "padding-block": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.component.paddingBlock.xs}"
+        },
+        "padding-inline": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.component.paddingInline.sm}"
+        }
+      },
+      "md": {
+        "font-size": {
+          "$type": "dimension",
+          "$value": "{primitives.typography.fontSize.base}"
+        },
+        "min-height": {
+          "$type": "dimension",
+          "$value": {
+            "value": 2.5,
+            "unit": "rem"
+          }
+        },
+        "padding-block": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.component.paddingBlock.sm}"
+        },
+        "padding-inline": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.component.paddingInline.md}"
+        }
+      },
+      "lg": {
+        "font-size": {
+          "$type": "dimension",
+          "$value": "{primitives.typography.fontSize.lg}"
+        },
+        "min-height": {
+          "$type": "dimension",
+          "$value": {
+            "value": 3,
+            "unit": "rem"
+          }
+        },
+        "padding-block": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.component.paddingBlock.md}"
+        },
+        "padding-inline": {
+          "$type": "dimension",
+          "$value": "{semantic.spacing.component.paddingInline.lg}"
+        }
+      }
+    },
+    "width": {
+      "xs": {
+        "$type": "dimension",
+        "$value": {
+          "value": 4.5,
+          "unit": "rem"
+        }
+      },
+      "s": {
+        "$type": "dimension",
+        "$value": {
+          "value": 11,
+          "unit": "rem"
+        }
+      },
+      "m": {
+        "$type": "dimension",
+        "$value": {
+          "value": 17.5,
+          "unit": "rem"
+        }
+      },
+      "l": {
+        "$type": "dimension",
+        "$value": {
+          "value": 24,
+          "unit": "rem"
+        }
+      },
+      "xl": {
+        "$type": "dimension",
+        "$value": {
+          "value": 30.5,
+          "unit": "rem"
+        }
+      },
+      "full": {
+        "$type": "number",
+        "$value": 100,
+        "$description": "Width of the control when input-width is full"
+      }
+    }
+  }
+}

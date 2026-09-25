@@ -36,6 +36,9 @@ const namedGradientFile = {
             $extensions: { 'com.figma': { type: 'LINEAR', angle: 45 } },
           },
         },
+        component: {
+          cardGradient: '{semantic.surface-brand-gradient}',
+        },
       },
     },
   },
@@ -194,16 +197,20 @@ describe('planDtcgToFigma', () => {
     expect(plan.variables.map((variable) => variable.name)).toEqual(['primitives/gradient/odd'])
   })
 
-  it('gives a semantic gradient a STRING variable and no paint style', () => {
+  it('gives semantic and component gradients STRING variables and paint styles', () => {
     const plan = planDtcgToFigma(namedGradientFile, EMPTY)
 
     expect(plan.variables.map((variable) => [variable.name, variable.resolvedType])).toEqual([
       ['primitives/gradient/sunset', 'STRING'],
       ['semantic/surface-brand-gradient', 'STRING'],
+      ['component/cardGradient', 'STRING'],
     ])
-    // Only the primitive describes a reusable paint; the semantic token expresses purpose.
-    expect(plan.styles.map((style) => style.name)).toEqual(['demo/light/primitives/gradient/sunset'])
-    expect(plan.warnings.join(' ')).toContain('"semantic/surface-brand-gradient" in "demo" is a gradient on a semantic or component token')
+    expect(plan.styles.map((style) => style.name)).toEqual([
+      'demo/light/primitives/gradient/sunset',
+      'demo/light/semantic/surface-brand-gradient',
+      'demo/light/component/cardGradient',
+    ])
+    expect(plan.warnings.join(' ')).toContain('Gradients have no Figma variable type')
   })
 
   it('explains a file without brands instead of planning nothing silently', () => {

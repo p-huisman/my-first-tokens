@@ -3,4 +3,7 @@ dist
 dist-ssr
 package-lock.json
 public/tokens.json
+public/pebble-tokens.json
 fixtures/*.json
+# Verbatim copy of the pebble token sources and their generated CSS: never reformat.
+fixtures/pebble

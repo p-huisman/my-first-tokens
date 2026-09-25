@@ -362,6 +362,9 @@ describe('code.ts', () => {
                 $extensions: { 'com.figma': { type: 'LINEAR', angle: 45 } },
               },
             },
+            component: {
+              cardGradient: '{semantic.surface-brand-gradient}',
+            },
           },
         },
       },
@@ -369,9 +372,10 @@ describe('code.ts', () => {
 
     await send({ type: 'apply-sync', json: file, options: syncOptions }, (message) => message.type === 'sync-applied')
     expect(store.variableIn('demo', 'semantic/surface-brand-gradient')?.resolvedType).toBe('STRING')
-    // Only the primitive gradient becomes a usable paint style.
-    expect(store.paintStyles).toHaveLength(1)
+    expect(store.paintStyles).toHaveLength(3)
     expect(store.styleNamed('demo/light/primitives/gradient/sunset')).toBeDefined()
+    expect(store.styleNamed('demo/light/semantic/surface-brand-gradient')).toBeDefined()
+    expect(store.styleNamed('demo/light/component/cardGradient')).toBeDefined()
 
     const exported = await send({ type: 'export-tokens' }, (message) => message.type === 'tokens-exported')
     if (exported?.type !== 'tokens-exported') throw new Error('expected tokens-exported')

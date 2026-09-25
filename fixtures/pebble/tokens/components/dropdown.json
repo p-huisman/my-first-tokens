@@ -1,0 +1,84 @@
+{
+  "$schema": "../config.json",
+  "dropdown": {
+    "background": {
+      "$type": "color",
+      "$value": "{semantic.color.surface.overlay}"
+    },
+    "borderColor": {
+      "$type": "color",
+      "$value": "{semantic.color.border.subtle}"
+    },
+    "borderRadius": {
+      "$type": "dimension",
+      "$value": "{primitives.spacing.radius.md}"
+    },
+    "boxShadow": {
+      "$type": "shadow",
+      "$value": "{semantic.elevation.shadow.tooltip}"
+    },
+    "color": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "zIndex": {
+      "$type": "number",
+      "$value": "{semantic.elevation.zIndex.dropdown}"
+    },
+    "padding": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.25,
+        "unit": "rem"
+      }
+    },
+    "minWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "rem"
+      }
+    }
+  },
+  "dropdown-item": {
+    "background": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [0, 0, 0],
+        "alpha": 0
+      }
+    },
+    "backgroundHover": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.hover}"
+    },
+    "backgroundActive": {
+      "$type": "color",
+      "$value": "{semantic.color.interactive.active}"
+    },
+    "color": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "colorHover": {
+      "$type": "color",
+      "$value": "{semantic.color.text.primary}"
+    },
+    "colorDisabled": {
+      "$type": "color",
+      "$value": "{semantic.color.text.disabled}"
+    },
+    "padding": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.5,
+        "unit": "rem"
+      }
+    },
+    "borderRadius": {
+      "$type": "dimension",
+      "$value": "{primitives.spacing.radius.sm}"
+    }
+  }
+}

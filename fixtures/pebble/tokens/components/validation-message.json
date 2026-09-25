@@ -1,0 +1,56 @@
+{
+  "validation-message": {
+    "fontSize": {
+      "$type": "dimension",
+      "$value": "{primitives.typography.fontSize.sm}",
+      "$description": "Font size for validation messages"
+    },
+    "fontWeight": {
+      "$type": "fontWeight",
+      "$value": "{primitives.typography.fontWeight.regular}",
+      "$description": "Font weight for validation messages"
+    },
+    "fontFamily": {
+      "$type": "fontFamily",
+      "$value": "{primitives.typography.fontFamily.sans}",
+      "$description": "Font family for validation messages"
+    },
+    "lineHeight": {
+      "$type": "number",
+      "$value": "{primitives.typography.lineHeight.normal}",
+      "$description": "Line height for validation messages"
+    },
+    "color": {
+      "$type": "color",
+      "$value": "{semantic.color.status.errorText}",
+      "$description": "Text color for error messages"
+    },
+    "gap": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.component.gap.sm}",
+      "$description": "Gap between icon and text"
+    },
+    "padding": {
+      "block": {
+        "$type": "dimension",
+        "$value": "{primitives.spacing.scale.1}",
+        "$description": "Vertical padding for validation message"
+      },
+      "inline": {
+        "$type": "dimension",
+        "$value": "{primitives.spacing.scale.0}",
+        "$description": "Horizontal padding for validation message"
+      }
+    },
+    "icon": {
+      "size": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1,
+          "unit": "rem"
+        },
+        "$description": "Size of the validation icon"
+      }
+    }
+  }
+}

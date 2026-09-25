@@ -1,0 +1,111 @@
+{
+  "avatar": {
+    "size": {
+      "$type": "dimension",
+      "$value": {
+        "value": 3,
+        "unit": "rem"
+      }
+    },
+    "background": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.8784313725490196, 0.8784313725490196, 0.8784313725490196
+        ],
+        "alpha": 1,
+        "hex": "#e0e0e0"
+      }
+    },
+    "color": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.25882352941176473, 0.25882352941176473, 0.25882352941176473
+        ],
+        "alpha": 1,
+        "hex": "#424242"
+      }
+    },
+    "iconColor": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.3803921568627451, 0.3803921568627451, 0.3803921568627451
+        ],
+        "alpha": 1,
+        "hex": "#616161"
+      }
+    },
+    "characterFontWeight": {
+      "$type": "fontWeight",
+      "$value": "{primitives.typography.fontWeight.semibold}"
+    },
+    "borderRadius": {
+      "$type": "dimension",
+      "$value": "{semantic.spacing.border.radius.full}"
+    },
+    "iconSize": {
+      "$type": "number",
+      "$value": 60
+    },
+    "characterScale": {
+      "$type": "number",
+      "$value": 0.4
+    },
+    "characterScaleFour": {
+      "$type": "number",
+      "$value": 0.32
+    },
+    "characterScaleFive": {
+      "$type": "number",
+      "$value": 0.28
+    },
+    "group": {
+      "overlap": {
+        "$type": "dimension",
+        "$value": {
+          "value": -1.4,
+          "unit": "rem"
+        }
+      },
+      "borderWidth": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.width.medium}"
+      },
+      "borderColor": {
+        "$type": "color",
+        "$value": "{semantic.color.surface.default}"
+      },
+      "overflowBackground": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.8784313725490196, 0.8784313725490196, 0.8784313725490196
+          ],
+          "alpha": 1,
+          "hex": "#e0e0e0"
+        }
+      },
+      "overflowColor": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.25882352941176473, 0.25882352941176473, 0.25882352941176473
+          ],
+          "alpha": 1,
+          "hex": "#424242"
+        }
+      },
+      "overflowFontScale": {
+        "$type": "number",
+        "$value": 0.32
+      }
+    }
+  }
+}

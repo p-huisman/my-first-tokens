@@ -1,0 +1,76 @@
+{
+  "splitter": {
+    "divider": {
+      "width": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.width.thick}"
+      },
+      "draggableArea": {
+        "$type": "number",
+        "$value": 1
+      },
+      "color": {
+        "default": {
+          "$type": "color",
+          "$value": "{semantic.color.border.default}"
+        },
+        "hover": {
+          "$type": "color",
+          "$value": "{semantic.color.border.strong}"
+        },
+        "focus": {
+          "$type": "color",
+          "$value": "{semantic.color.interactive.focus}"
+        }
+      },
+      "transition": {
+        "duration": {
+          "$type": "duration",
+          "$value": {
+            "value": 50,
+            "unit": "ms"
+          }
+        },
+        "easing": {
+          "$type": "cubicBezier",
+          "$value": [0.25, 0.1, 0.25, 1]
+        }
+      }
+    },
+    "handle": {
+      "size": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1.5,
+          "unit": "rem"
+        }
+      },
+      "borderRadius": {
+        "$type": "dimension",
+        "$value": "{semantic.spacing.border.radius.sm}"
+      },
+      "background": {
+        "default": {
+          "$type": "color",
+          "$value": "{semantic.color.interactive.default}"
+        },
+        "hover": {
+          "$type": "color",
+          "$value": "{semantic.color.interactive.hover}"
+        }
+      },
+      "color": {
+        "$type": "color",
+        "$value": "{primitives.color.neutral.0}"
+      }
+    },
+    "panel": {
+      "scrollbar": {
+        "color": {
+          "$type": "color",
+          "$value": "{semantic.color.border.subtle}"
+        }
+      }
+    }
+  }
+}
